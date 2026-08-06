@@ -17,5 +17,22 @@ async function findUserByEmail(email) {
   );
   return result.rows[0];
 }
-
-module.exports = { createUser, findUserByEmail };
+async function findUserById(user_id) {
+  const result = await pool.query(
+    `SELECT user_id, full_name, email, role, created_at
+     FROM users WHERE user_id = $1`,
+    [user_id]
+  );
+  return result.rows[0];
+}
+async function updateUser(user_id,{fullName}) {
+  const result = await pool.query(
+    `UPDATE users
+     SET full_name = $1
+     WHERE user_id = $2
+     RETURNING user_id, full_name, email, role, created_at`,
+    [fullName,user_id]
+  );
+  return result.rows[0];
+}
+module.exports = { createUser, findUserByEmail,findUserById,updateUser };
