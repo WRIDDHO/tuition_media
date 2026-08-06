@@ -9,6 +9,9 @@ app.use(express.json());
 // Allow the frontend (different port) to call this API
 app.use(cors());
 
+const authRoutes = require('./routes/auth.routes');
+app.use('/api/auth', authRoutes);
+
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
