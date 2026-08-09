@@ -17,6 +17,8 @@ const teacherRoutes = require('./routes/teacher.routes');
 app.use('/api/teachers', teacherRoutes);
 const studentRoutes = require('./routes/student.routes');
 app.use('/api/students', studentRoutes);
+const subjectRoutes = require('./routes/subject.routes');
+app.use('/api/subjects', subjectRoutes);//GET http://localhost:5000/api/subjects
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
