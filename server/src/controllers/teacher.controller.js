@@ -3,6 +3,7 @@ const {
   findTeacherByUserId,
   findTeacherById,
   updateTeacherProfile,
+  searchTeachers,
 } = require('../models/teacher.model');
 
 async function createProfile(req, res) {
@@ -59,4 +60,22 @@ async function getTeacherPublic(req, res) {
   }
 }
 
-module.exports = { createProfile, getMyProfile, updateMyProfile, getTeacherPublic };
+async function search(req, res) {
+  try {
+    const { subject, district, gender, minRate, maxRate, limit } = req.query;
+    const teachers = await searchTeachers({
+      subjectName: subject,
+      district,
+      gender,
+      minRate,
+      maxRate,
+      limit,
+    });
+    res.status(200).json({ count: teachers.length, teachers });
+  } catch (err) {
+    console.error('SearchTeachers error:', err.message);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+}
+
+module.exports = { createProfile, getMyProfile, updateMyProfile, getTeacherPublic,search };

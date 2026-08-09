@@ -58,10 +58,18 @@ async function updateTeacherProfile(userId, data) {
   );
   return result.rows[0];
 }
-
+async function searchTeachers(filters) {
+  const { subjectName, district, gender, minRate, maxRate, limit } = filters;
+  const result = await pool.query(
+    `SELECT * FROM search_teachers($1, $2, $3, $4, $5, $6)`,
+    [subjectName || null, district || null, gender || null, minRate || null, maxRate || null, limit || 20]
+  );
+  return result.rows;
+}
 module.exports = {
   createTeacherProfile,
   findTeacherByUserId,
   findTeacherById,
   updateTeacherProfile,
+  searchTeachers
 };

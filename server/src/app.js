@@ -19,6 +19,23 @@ const studentRoutes = require('./routes/student.routes');
 app.use('/api/students', studentRoutes);
 const subjectRoutes = require('./routes/subject.routes');
 app.use('/api/subjects', subjectRoutes);//GET http://localhost:5000/api/subjects
+const teacherSubjectRoutes = require('./routes/teacherSubject.routes');
+app.use('/api/teacher-subjects', teacherSubjectRoutes);
+//src/controllers/teacherSubject.controller.js->src/middleware/resolveTeacherId.middleware.js->src/routes/teacherSubject.routes.js
+//add upper 2 line in app.js
+/*
+POST http://localhost:5000/api/teacher-subjects
+using teachers token 
+body {
+  "subjectId": 1,
+  "proficiencyLevel": "Expert"
+}->201 created
+*/
+/*
+http://localhost:5000/api/teachers/search?subject=Math&district=Dhaka
+└──────┬──────┘└──┬──┘└─────┬──────┘└──────────┬──────────┘
+     base URL    port      path            query string
+*/
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
