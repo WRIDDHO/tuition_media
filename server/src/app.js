@@ -36,6 +36,12 @@ http://localhost:5000/api/teachers/search?subject=Math&district=Dhaka
 └──────┬──────┘└──┬──┘└─────┬──────┘└──────────┬──────────┘
      base URL    port      path            query string
 */
+
+const teacherPostRoutes = require('./routes/teacherPost.routes');
+app.use('/api/teacher-posts', teacherPostRoutes);
+//teacherPost.model.js->teacherPost.controller.js->teacherPost.routes.js->app.js
+
+
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
