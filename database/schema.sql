@@ -4,6 +4,7 @@ CREATE TYPE user_role AS ENUM ('student','teacher','admin');
 CREATE TYPE post_status AS ENUM ('active','completed','cancelled');
 CREATE TYPE app_status AS ENUM ('pending','accepted','rejected');
 CREATE TYPE mode_type AS ENUM ('online','offline','both');
+
 CREATE TABLE users(
  user_id SERIAL PRIMARY KEY,
  full_name VARCHAR(100) NOT NULL,
