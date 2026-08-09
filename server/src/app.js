@@ -41,6 +41,9 @@ const teacherPostRoutes = require('./routes/teacherPost.routes');
 app.use('/api/teacher-posts', teacherPostRoutes);
 //teacherPost.model.js->teacherPost.controller.js->teacherPost.routes.js->app.js
 
+const studentRequestRoutes = require('./routes/studentRequest.routes');
+app.use('/api/student-requests', studentRequestRoutes);
+//studentRequest.model.js->studentPost.routes.js->app.js
 
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
