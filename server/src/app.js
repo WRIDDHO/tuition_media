@@ -49,6 +49,17 @@ const applicationRoutes = require('./routes/application.routes');
 app.use('/api/applications', applicationRoutes);
 //application.model.js(last function)->application.controller.js->application.routes.js->app.js
 // Simple test route to confirm the server is alive
+
+app.use('/uploads', express.static('src/uploads'));
+//upload.middleware.js->uploads/question folder->.gitignore add->comand diye getkeep
+
+const questionRoutes = require('./routes/question.routes');
+app.use('/api/questions', questionRoutes);
+
+const answerRoutes = require('./routes/answer.routes');
+app.use('/api/answers', answerRoutes);
+
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
 });
