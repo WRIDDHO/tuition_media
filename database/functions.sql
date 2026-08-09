@@ -56,3 +56,75 @@ BEGIN
     LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql;
+DROP PROCEDURE IF EXISTS accept_post_application;
+CREATE OR REPLACE PROCEDURE accept_post_application(
+    IN p_application_id INTEGER,
+    IN p_teacher_id INTEGER,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT,
+    OUT out_match_id INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_post_id INTEGER;
+    v_student_id INTEGER;
+    v_post_owner_id INTEGER;
+    v_current_status VARCHAR(20);
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+    out_match_id := NULL;
+
+    BEGIN
+        -- Step 1: find the application, and lock this row so two accepts can't race
+        SELECT a.post_id, a.student_id, a.status, tp.teacher_id
+        INTO v_post_id, v_student_id, v_current_status, v_post_owner_id
+        FROM teacher_post_applications a
+        JOIN teacher_tuition_posts tp ON tp.post_id = a.post_id
+        WHERE a.application_id = p_application_id
+        FOR UPDATE;
+
+        IF v_post_id IS NULL THEN
+            out_message := 'Application not found';
+            RETURN;
+        END IF;
+
+        IF v_post_owner_id <> p_teacher_id THEN
+            out_message := 'You do not own this post';
+            RETURN;
+        END IF;
+
+        IF v_current_status <> 'pending' THEN
+            out_message := 'This application has already been ' || v_current_status;
+            RETURN;
+        END IF;
+
+        -- Step 2: mark this application accepted
+        UPDATE teacher_post_applications
+        SET status = 'accepted'
+        WHERE application_id = p_application_id;
+
+        -- Step 3: reject every OTHER pending application for the same post
+        UPDATE teacher_post_applications
+        SET status = 'rejected'
+        WHERE post_id = v_post_id
+          AND application_id <> p_application_id
+          AND status = 'pending';
+
+        -- Step 4: create the match
+        INSERT INTO matches (teacher_id, student_id, teacher_post_id, status)
+        VALUES (p_teacher_id, v_student_id, v_post_id, 'active')
+        RETURNING match_id INTO out_match_id;
+
+        out_success := TRUE;
+        out_message := 'Application accepted and match created';
+
+    EXCEPTION WHEN OTHERS THEN
+        out_success := FALSE;
+        out_message := SQLERRM;
+        out_match_id := NULL;
+        RETURN;
+    END;
+END;
+$$;

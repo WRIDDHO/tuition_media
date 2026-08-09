@@ -45,6 +45,9 @@ const studentRequestRoutes = require('./routes/studentRequest.routes');
 app.use('/api/student-requests', studentRequestRoutes);
 //studentRequest.model.js->studentPost.routes.js->app.js
 
+const applicationRoutes = require('./routes/application.routes');
+app.use('/api/applications', applicationRoutes);
+//application.model.js(last function)->application.controller.js->application.routes.js->app.js
 // Simple test route to confirm the server is alive
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
