@@ -128,3 +128,54 @@ BEGIN
     END;
 END;
 $$;
+-- ============================================================
+-- TRIGGER: Auto-update teacher's avg_rating whenever a review
+-- is inserted, updated, or deleted
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION update_teacher_rating()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_teacher_user_id INTEGER;
+    v_teacher_id INTEGER;
+BEGIN
+    -- Figure out which teacher's rating needs recalculating.
+    -- On DELETE, the row is in OLD; on INSERT/UPDATE, it's in NEW.
+    IF TG_OP = 'DELETE' THEN
+        v_teacher_user_id := OLD.reviewee_user_id;
+    ELSE
+        v_teacher_user_id := NEW.reviewee_user_id;
+    END IF;
+
+    SELECT teacher_id INTO v_teacher_id
+    FROM teachers
+    WHERE user_id = v_teacher_user_id;
+
+    -- If the reviewee wasn't a teacher (e.g. a student), there's nothing to update
+    IF v_teacher_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    UPDATE teachers
+    SET
+        avg_rating = COALESCE((
+            SELECT ROUND(AVG(r.rating)::NUMERIC, 2)
+            FROM reviews r
+            WHERE r.reviewee_user_id = v_teacher_user_id
+        ), 0),
+        total_reviews = (
+            SELECT COUNT(*)
+            FROM reviews r
+            WHERE r.reviewee_user_id = v_teacher_user_id
+        )
+    WHERE teacher_id = v_teacher_id;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_review_change ON reviews;
+CREATE TRIGGER after_review_change
+    AFTER INSERT OR UPDATE OR DELETE ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION update_teacher_rating();
