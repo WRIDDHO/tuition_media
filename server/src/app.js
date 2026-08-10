@@ -59,6 +59,13 @@ app.use('/api/questions', questionRoutes);
 const answerRoutes = require('./routes/answer.routes');
 app.use('/api/answers', answerRoutes);
 
+const resourceRoutes = require('./routes/resource.routes');
+app.use('/api/resources', resourceRoutes);
+//upload.middleware->resource.model->controller->routes then app.js 
+
+const bookmarkRoutes = require('./routes/bookmark.routes');
+app.use('/api/bookmarks', bookmarkRoutes);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
