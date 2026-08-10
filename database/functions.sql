@@ -179,3 +179,89 @@ CREATE TRIGGER after_review_change
     AFTER INSERT OR UPDATE OR DELETE ON reviews
     FOR EACH ROW
     EXECUTE FUNCTION update_teacher_rating();
+    -- ============================================================
+-- TRIGGER: Notify the student when their post-application status changes
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION notify_on_application_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_student_user_id INTEGER;
+    v_post_title VARCHAR(150);
+BEGIN
+    -- only fire when status actually changed (not on every UPDATE)
+    IF NEW.status = OLD.status THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT u.user_id, tp.title
+    INTO v_student_user_id, v_post_title
+    FROM students s
+    JOIN users u ON u.user_id = s.user_id
+    JOIN teacher_tuition_posts tp ON tp.post_id = NEW.post_id
+    WHERE s.student_id = NEW.student_id;
+
+    IF NEW.status = 'accepted' THEN
+        INSERT INTO notifications (user_id, type, message, link)
+        VALUES (
+            v_student_user_id,
+            'application_accepted',
+            'Your application for "' || v_post_title || '" was accepted!',
+            '/teacher-posts/' || NEW.post_id
+        );
+    ELSIF NEW.status = 'rejected' THEN
+        INSERT INTO notifications (user_id, type, message, link)
+        VALUES (
+            v_student_user_id,
+            'application_rejected',
+            'Your application for "' || v_post_title || '" was not selected.',
+            '/teacher-posts/' || NEW.post_id
+        );
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_application_status_change ON teacher_post_applications;
+CREATE TRIGGER after_application_status_change
+    AFTER UPDATE ON teacher_post_applications
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_on_application_status_change();
+
+    -- ============================================================
+-- TRIGGER: Notify the question-asker when someone answers
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION notify_on_new_answer()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_question_owner_id INTEGER;
+    v_question_title VARCHAR(150);
+BEGIN
+    SELECT user_id, title INTO v_question_owner_id, v_question_title
+    FROM questions
+    WHERE question_id = NEW.question_id;
+
+    -- don't notify someone for answering their own question
+    IF v_question_owner_id = NEW.user_id THEN
+        RETURN NULL;
+    END IF;
+
+    INSERT INTO notifications (user_id, type, message, link)
+    VALUES (
+        v_question_owner_id,
+        'new_answer',
+        'Someone answered your question: "' || v_question_title || '"',
+        '/questions/' || NEW.question_id
+    );
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_answer_insert ON answers;
+CREATE TRIGGER after_answer_insert
+    AFTER INSERT ON answers
+    FOR EACH ROW
+    EXECUTE FUNCTION notify_on_new_answer();

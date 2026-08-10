@@ -69,6 +69,9 @@ app.use('/api/bookmarks', bookmarkRoutes);
 const reviewRoutes = require('./routes/review.routes');
 app.use('/api/reviews', reviewRoutes);
 
+const notificationRoutes = require('./routes/notification.routes');
+app.use('/api/notifications', notificationRoutes);
+
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Tuition Media API is running' });
