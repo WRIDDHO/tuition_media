@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-forest-950: #0a2e22;
+  --color-forest-900: #0b3d2e;
+  --color-forest-800: #124a37;
+  --color-forest-700: #1a6b4f;
+  --color-forest-600: #227d5c;
+  --color-forest-100: #e3efe7;
+  --color-forest-50: #f1f7f3;
+
+  --color-amber-600: #c9861a;
+  --color-amber-500: #e8a33d;
+  --color-amber-400: #f0b95f;
+  --color-amber-100: #fbead0;
+
+  --color-cream-100: #faf8f3;
+  --color-cream-50: #fdfcfa;
+
+  --color-ink-900: #16241d;
+  --color-ink-600: #4d5d54;
+  --color-ink-400: #7c8a81;
+
+  --font-display: 'Fraunces', ui-serif, Georgia, serif;
+  --font-body: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-cream-100);
+  color: var(--color-ink-900);
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-forest-700);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.ink-underline {
+  background-image: linear-gradient(var(--color-amber-500), var(--color-amber-500));
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  background-position: 0 100%;
+  transition: background-size 0.3s ease;
+}
+.ink-underline:hover {
+  background-size: 100% 2px;
+}
