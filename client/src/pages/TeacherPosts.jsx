@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, Wallet, MapPin, Users } from 'lucide-react';
 import { getAllTeacherPosts } from '@/services/postService';
 import { StaggerGrid, StaggerItem } from '@/components/shared/StaggerGrid';
-import { SubjectPill, EmptyState, Spinner } from '@/components/shared/Primitives';
+import { SubjectPill, EmptyState, CardSkeletonGrid } from '@/components/shared/Primitives';
 
 export default function TeacherPosts() {
   const { data: posts, isLoading } = useQuery({
@@ -27,7 +27,7 @@ export default function TeacherPosts() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-24"><Spinner /></div>
+        <CardSkeletonGrid count={6} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" />
       ) : !posts?.length ? (
         <EmptyState title="No open posts right now" />
       ) : (

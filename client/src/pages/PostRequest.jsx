@@ -14,6 +14,7 @@ export default function PostRequest() {
   const [form, setForm] = useState({
     subjectId: '', classLevel: '', salary: '', description: '',
     location: '', categoryName: categories[0], daysPerWeek: '', preferredTime: '',
+    mode: 'both', preferredInstitution: '',
   });
   const [saving, setSaving] = useState(false);
 
@@ -78,6 +79,25 @@ export default function PostRequest() {
             <label className="mb-1.5 block text-sm font-medium text-ink-900">Days per week</label>
             <input type="number" value={form.daysPerWeek} onChange={(e) => update('daysPerWeek', e.target.value)}
               placeholder="3" className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Preferred time</label>
+            <input value={form.preferredTime} onChange={(e) => update('preferredTime', e.target.value)}
+              placeholder="e.g. 6:00 PM" className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Mode</label>
+            <select value={form.mode} onChange={(e) => update('mode', e.target.value)}
+              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700">
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="both">Both</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Preferred institution (optional)</label>
+            <input value={form.preferredInstitution} onChange={(e) => update('preferredInstitution', e.target.value)}
+              placeholder="e.g. Public University tutor preferred" className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
           </div>
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-ink-900">Description</label>

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
+import PasswordInput from '@/components/shared/PasswordInput';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email address'),
@@ -65,12 +66,9 @@ export default function Login() {
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink-900">
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
               {...register('password')}
-              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700"
-              placeholder="••••••••"
             />
             {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>}
           </div>

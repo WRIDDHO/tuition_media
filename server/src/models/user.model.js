@@ -19,7 +19,7 @@ async function findUserByEmail(email) {
 }
 async function findUserById(user_id) {
   const result = await pool.query(
-    `SELECT user_id, full_name, email, role, created_at
+    `SELECT user_id, full_name, email, role, created_at, profile_picture
      FROM users WHERE user_id = $1`,
     [user_id]
   );
@@ -35,4 +35,13 @@ async function updateUser(user_id,{fullName}) {
   );
   return result.rows[0];
 }
-module.exports = { createUser, findUserByEmail,findUserById,updateUser };
+async function updateProfilePicture(userId, profilePictureUrl) {
+  const result = await pool.query(
+    `UPDATE users SET profile_picture = $1
+     WHERE user_id = $2
+     RETURNING user_id, full_name, email, role, profile_picture`,
+    [profilePictureUrl, userId]
+  );
+  return result.rows[0];
+}
+module.exports = { createUser, findUserByEmail, findUserById, updateUser, updateProfilePicture };

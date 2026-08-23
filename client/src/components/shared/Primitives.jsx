@@ -42,3 +42,44 @@ export function Spinner({ className = '' }) {
     />
   );
 }
+
+// A single shimmering block — the building unit for skeleton layouts.
+export function Skeleton({ className = '' }) {
+  return <div className={`animate-pulse rounded-lg bg-forest-100/70 ${className}`} />;
+}
+
+// Matches the shape of a Teachers.jsx / TeacherPosts.jsx / Requests.jsx
+// card exactly, so the loading state doesn't "jump" once real data
+// arrives — width/height of each block mirrors the real content.
+export function CardSkeleton() {
+  return (
+    <div className="flex h-full flex-col rounded-2xl border border-forest-100 bg-cream-50 p-6">
+      <div className="flex items-center gap-3">
+        <Skeleton className="h-12 w-12 rounded-full" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-1/2" />
+        </div>
+      </div>
+      <Skeleton className="mt-4 h-3 w-full" />
+      <Skeleton className="mt-2 h-3 w-5/6" />
+      <div className="mt-4 flex gap-1.5">
+        <Skeleton className="h-5 w-16 rounded-full" />
+        <Skeleton className="h-5 w-14 rounded-full" />
+      </div>
+      <Skeleton className="mt-auto h-5 w-20 pt-5" />
+    </div>
+  );
+}
+
+// Renders `count` CardSkeletons in the same grid classes the real
+// content will use, so callers just swap this in during isLoading.
+export function CardSkeletonGrid({ count = 6, className = '' }) {
+  return (
+    <div className={className}>
+      {Array.from({ length: count }).map((_, i) => (
+        <CardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}

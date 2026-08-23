@@ -6,6 +6,7 @@ import Landing from '@/pages/Landing';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import Dashboard from '@/pages/Dashboard';
+import AccountSettings from '@/pages/AccountSettings';
 import NotFound from '@/pages/NotFound';
 
 import Teachers from '@/pages/Teachers';
@@ -28,7 +29,10 @@ import QuestionDetail from '@/pages/QuestionDetail';
 import AskQuestion from '@/pages/AskQuestion';
 
 import Resources from '@/pages/Resources';
+import UploadResource from '@/pages/UploadResource';
 import Notifications from '@/pages/Notifications';
+import MyBookmarks from '@/pages/MyBookmarks';
+import WriteReview from '@/pages/WriteReview';
 
 import ProtectedRoute from '@/components/shared/ProtectedRoute';
 
@@ -41,16 +45,13 @@ export default function App() {
       />
       <Routes>
         <Route element={<Layout />}>
-          {/* Public */}
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Teacher profiles (public browsing) */}
           <Route path="/teachers" element={<Teachers />} />
           <Route path="/teachers/:id" element={<TeacherProfile />} />
 
-          {/* Teacher tuition posts (public browsing + student apply + teacher accept) */}
           <Route path="/teacher-posts" element={<TeacherPosts />} />
           <Route path="/teacher-posts/:id" element={<TeacherPostDetail />} />
           <Route
@@ -58,7 +59,6 @@ export default function App() {
             element={<ProtectedRoute role="teacher"><PostTeacherPost /></ProtectedRoute>}
           />
 
-          {/* Student requests (public browsing) */}
           <Route path="/requests" element={<Requests />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
           <Route
@@ -66,7 +66,6 @@ export default function App() {
             element={<ProtectedRoute role="student"><PostRequest /></ProtectedRoute>}
           />
 
-          {/* Q&A (public browsing) */}
           <Route path="/questions" element={<Questions />} />
           <Route path="/questions/:id" element={<QuestionDetail />} />
           <Route
@@ -74,10 +73,20 @@ export default function App() {
             element={<ProtectedRoute><AskQuestion /></ProtectedRoute>}
           />
 
-          {/* Resources (public browsing) */}
           <Route path="/resources" element={<Resources />} />
+          <Route
+            path="/resources/new"
+            element={<ProtectedRoute role="teacher"><UploadResource /></ProtectedRoute>}
+          />
+          <Route
+            path="/bookmarks"
+            element={<ProtectedRoute role="student"><MyBookmarks /></ProtectedRoute>}
+          />
+          <Route
+            path="/reviews/write/:matchId"
+            element={<ProtectedRoute role="student"><WriteReview /></ProtectedRoute>}
+          />
 
-          {/* Protected: profile setup */}
           <Route
             path="/teachers/me/edit"
             element={<ProtectedRoute role="teacher"><TeacherProfileSetup /></ProtectedRoute>}
@@ -87,7 +96,6 @@ export default function App() {
             element={<ProtectedRoute role="student"><StudentProfileSetup /></ProtectedRoute>}
           />
 
-          {/* Protected: personal activity */}
           <Route
             path="/my-applications"
             element={<ProtectedRoute role="student"><MyApplications /></ProtectedRoute>}
@@ -100,7 +108,10 @@ export default function App() {
             path="/dashboard"
             element={<ProtectedRoute><Dashboard /></ProtectedRoute>}
           />
-
+          <Route
+          path="/account/settings"
+          element={<ProtectedRoute><AccountSettings /></ProtectedRoute>}
+          />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

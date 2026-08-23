@@ -90,6 +90,30 @@ export default function PostTeacherPost() {
             <input value={form.preferredTime} onChange={(e) => update('preferredTime', e.target.value)}
               placeholder="e.g. 7:00 PM" className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
           </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Session duration</label>
+            <input value={form.duration} onChange={(e) => update('duration', e.target.value)}
+              placeholder="e.g. 1.5 Hour" className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Vacancy (how many students)</label>
+            <input type="number" min="1" value={form.vacancy} onChange={(e) => update('vacancy', e.target.value)}
+              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Preferred student gender</label>
+            <select value={form.preferredGender} onChange={(e) => update('preferredGender', e.target.value)}
+              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700">
+              <option value="any">No preference</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-ink-900">Application deadline</label>
+            <input type="date" value={form.deadline} onChange={(e) => update('deadline', e.target.value)}
+              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700" />
+          </div>
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-ink-900">Description</label>
             <textarea value={form.description} onChange={(e) => update('description', e.target.value)} rows={4}

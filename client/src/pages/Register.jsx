@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { GraduationCap, BookOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import PasswordInput from '@/components/shared/PasswordInput';
 
 const schema = z.object({
   fullName: z.string().min(2, 'Enter your full name'),
@@ -49,7 +50,6 @@ export default function Register() {
         <h1 className="font-display text-2xl font-semibold text-forest-950">Create your account</h1>
         <p className="mt-1 text-sm text-ink-600">Join as a student or a tutor — takes under a minute.</p>
 
-        {/* role toggle */}
         <div className="mt-6 grid grid-cols-2 gap-3">
           {[
             { key: 'student', label: 'Student', icon: GraduationCap },
@@ -103,12 +103,10 @@ export default function Register() {
             <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink-900">
               Password
             </label>
-            <input
+            <PasswordInput
               id="password"
-              type="password"
-              {...register('password')}
-              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700"
               placeholder="At least 6 characters"
+              {...register('password')}
             />
             {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>}
           </div>

@@ -26,9 +26,12 @@ async function getApplicationsForPost(postId) {
 
 async function getMyPostApplications(studentId) {
   const result = await pool.query(
-    `SELECT a.*, tp.title, tp.expected_salary
+    `SELECT a.*, tp.title, tp.expected_salary, m.match_id
      FROM teacher_post_applications a
      JOIN teacher_tuition_posts tp ON tp.post_id = a.post_id
+     LEFT JOIN matches m
+       ON m.teacher_post_id = a.post_id
+      AND m.student_id = a.student_id
      WHERE a.student_id = $1
      ORDER BY a.applied_at DESC`,
     [studentId]

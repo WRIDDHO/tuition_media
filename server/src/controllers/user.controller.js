@@ -1,5 +1,10 @@
-const { findUserById, updateUser } = require('../models/user.model');
+const {
+  findUserById,
+  updateUser,
+  updateProfilePicture,
+} = require('../models/user.model');
 
+const { buildProfilePictureUrl } = require('../middleware/upload.middleware');
 async function getMe(req, res) {
   try {
     const user = await findUserById(req.user.userId);
@@ -31,5 +36,17 @@ async function updateMe(req, res) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 }
-
-module.exports = { getMe, updateMe };
+async function uploadPicture(req, res) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided.' });
+    }
+    const url = buildProfilePictureUrl(req.file.filename);
+    const updated = await updateProfilePicture(req.user.userId, url);
+    res.status(200).json({ message: 'Profile picture updated', user: updated });
+  } catch (err) {
+    console.error('UploadPicture error:', err.message);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+}
+module.exports = { getMe, updateMe, uploadPicture };

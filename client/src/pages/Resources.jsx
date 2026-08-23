@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { getAllResources, getResourceDownloadUrl, toggleBookmark } from '@/services/activityService';
 import { useAuth } from '@/context/AuthContext';
 import { StaggerGrid, StaggerItem } from '@/components/shared/StaggerGrid';
-import { SubjectPill, EmptyState, Spinner } from '@/components/shared/Primitives';
+import { SubjectPill, EmptyState, CardSkeletonGrid } from '@/components/shared/Primitives';
 
 const fileTypeLabel = (mime = '') => {
   if (mime.includes('pdf')) return 'PDF';
@@ -38,7 +38,7 @@ export default function Resources() {
       <p className="mt-2 text-ink-600">Notes, practice sheets and slides shared by tutors.</p>
 
       {isLoading ? (
-        <div className="flex justify-center py-24"><Spinner /></div>
+        <CardSkeletonGrid count={6} className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3" />
       ) : !resources?.length ? (
         <EmptyState title="No resources yet" />
       ) : (
