@@ -33,6 +33,7 @@ import UploadResource from '@/pages/UploadResource';
 import Notifications from '@/pages/Notifications';
 import MyBookmarks from '@/pages/MyBookmarks';
 import WriteReview from '@/pages/WriteReview';
+import AdminDashboard from '@/pages/AdminDashboard';
 
 import ProtectedRoute from '@/components/shared/ProtectedRoute';
 
@@ -58,6 +59,10 @@ export default function App() {
             path="/teacher-posts/new"
             element={<ProtectedRoute role="teacher"><PostTeacherPost /></ProtectedRoute>}
           />
+          <Route
+            path="/teacher-posts/:id/edit"
+            element={<ProtectedRoute role="teacher"><PostTeacherPost /></ProtectedRoute>}
+          />
 
           <Route path="/requests" element={<Requests />} />
           <Route path="/requests/:id" element={<RequestDetail />} />
@@ -65,11 +70,19 @@ export default function App() {
             path="/requests/new"
             element={<ProtectedRoute role="student"><PostRequest /></ProtectedRoute>}
           />
+          <Route
+            path="/requests/:id/edit"
+            element={<ProtectedRoute role="student"><PostRequest /></ProtectedRoute>}
+          />
 
           <Route path="/questions" element={<Questions />} />
           <Route path="/questions/:id" element={<QuestionDetail />} />
           <Route
             path="/questions/new"
+            element={<ProtectedRoute><AskQuestion /></ProtectedRoute>}
+          />
+          <Route
+            path="/questions/:id/edit"
             element={<ProtectedRoute><AskQuestion /></ProtectedRoute>}
           />
 
@@ -98,7 +111,7 @@ export default function App() {
 
           <Route
             path="/my-applications"
-            element={<ProtectedRoute role="student"><MyApplications /></ProtectedRoute>}
+            element={<ProtectedRoute><MyApplications /></ProtectedRoute>}
           />
           <Route
             path="/notifications"
@@ -111,6 +124,10 @@ export default function App() {
           <Route
           path="/account/settings"
           element={<ProtectedRoute><AccountSettings /></ProtectedRoute>}
+          />
+          <Route
+            path="/admin"
+            element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>}
           />
           <Route path="*" element={<NotFound />} />
         </Route>

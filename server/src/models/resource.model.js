@@ -14,7 +14,7 @@ async function createResource(teacherId, data) {
 
 async function getAllResources(subjectId) {
   const result = await pool.query(
-    `SELECT r.*, s.subject_name, u.full_name AS teacher_name
+    `SELECT r.*, s.subject_name, u.full_name AS teacher_name, u.user_id AS teacher_user_id
      FROM resources r
      JOIN subjects s ON s.subject_id = r.subject_id
      JOIN teachers t ON t.teacher_id = r.teacher_id
@@ -28,7 +28,7 @@ async function getAllResources(subjectId) {
 
 async function getResourceById(resourceId) {
   const result = await pool.query(
-    `SELECT r.*, s.subject_name, u.full_name AS teacher_name
+    `SELECT r.*, s.subject_name, u.full_name AS teacher_name, u.user_id AS teacher_user_id
      FROM resources r
      JOIN subjects s ON s.subject_id = r.subject_id
      JOIN teachers t ON t.teacher_id = r.teacher_id
@@ -69,7 +69,35 @@ async function deleteResource(resourceId, teacherId) {
   return result.rows[0];
 }
 
+// FIXED (Phase 3): resources previously had no update path at all --
+// only create/read/download/delete. Metadata only (title/description/
+// classLevel/subjectId); the uploaded file itself is immutable here,
+// consistent with "preserve existing upload functionality" -- re-uploading
+// a new file is a new resource, not an edit of this one.
+async function updateResource(resourceId, teacherId, data) {
+  const { subjectId, classLevel, title, description } = data;
+  const result = await pool.query(
+    `UPDATE resources
+     SET subject_id = $1, class_level = $2, title = $3, description = $4
+     WHERE resource_id = $5 AND teacher_id = $6
+     RETURNING *`,
+    [subjectId, classLevel, title, description, resourceId, teacherId]
+  );
+  return result.rows[0];
+}
+async function adminDeleteResource(resourceId) {
+  const result = await pool.query(
+    `DELETE FROM resources WHERE resource_id = $1 RETURNING *`,
+    [resourceId]
+  );
+  return result.rows[0];
+}
+// module.exports = {
+//   createResource, getAllResources, getResourceById,
+//   getResourcesByTeacher, incrementDownloadCount, deleteResource, updateResource,
+// };
 module.exports = {
   createResource, getAllResources, getResourceById,
-  getResourcesByTeacher, incrementDownloadCount, deleteResource,
+  getResourcesByTeacher, incrementDownloadCount, deleteResource, updateResource,
+  adminDeleteResource,
 };

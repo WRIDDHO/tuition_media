@@ -37,3 +37,13 @@ export async function submitReview({ matchId, rating, comment }) {
   const res = await api.post('/reviews', { matchId, rating, comment });
   return res.data.review;
 }
+
+export async function updateReview(id, { rating, comment }) {
+  const res = await api.put(`/reviews/${id}`, { rating, comment });
+  return res.data.review;
+}
+
+export async function deleteReview(id) {
+  const res = await api.delete(`/reviews/${id}`);
+  return res.data;
+}

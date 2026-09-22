@@ -1,22 +1,26 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { Calendar, Wallet, MapPin, Users, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar, Wallet, MapPin, Users, Clock, CheckCircle2, Pencil, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getTeacherPostById } from '@/services/postService';
-import { applyToPost, getApplicationsForPost, acceptApplication } from '@/services/activityService';
+import { getTeacherPostById, deleteTeacherPost } from '@/services/postService';
+import { applyToPost, getApplicationsForPost, acceptApplication, rejectApplication } from '@/services/activityService';
 import { useAuth } from '@/context/AuthContext';
 import { Spinner, SubjectPill } from '@/components/shared/Primitives';
 
 export default function TeacherPostDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: post, isLoading } = useQuery({
     queryKey: ['teacher-post', id],
     queryFn: () => getTeacherPostById(id),
   });
+
+  const isOwner = user?.role === 'teacher' && post?.teacher_user_id === user.userId;
+  const isAdmin = user?.role === 'admin';
 
   const applyMutation = useMutation({
     mutationFn: () => applyToPost(id),
@@ -43,6 +47,29 @@ export default function TeacherPostDetail() {
     onError: (err) => toast.error(err.response?.data?.error || 'Could not accept'),
   });
 
+  const rejectMutation = useMutation({
+    mutationFn: (applicationId) => rejectApplication(applicationId),
+    onSuccess: () => {
+      toast.success('Application rejected');
+      queryClient.invalidateQueries({ queryKey: ['post-applicants', id] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not reject'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteTeacherPost(id),
+    onSuccess: () => {
+      toast.success('Post deleted');
+      navigate('/teacher-posts');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not delete post'),
+  });
+
+  function handleDelete() {
+    if (!window.confirm('Delete this post? This cannot be undone.')) return;
+    deleteMutation.mutate();
+  }
+
   if (isLoading) return <div className="flex min-h-[60vh] items-center justify-center"><Spinner /></div>;
   if (!post) return null;
 
@@ -55,6 +82,26 @@ export default function TeacherPostDetail() {
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
+      {(isOwner || isAdmin) && (
+        <div className="mb-4 flex justify-end gap-2">
+          {isOwner && (
+            <Link
+              to={`/teacher-posts/${id}/edit`}
+              className="flex items-center gap-1.5 rounded-xl border border-forest-200 px-4 py-2 text-sm font-semibold text-forest-800 hover:bg-forest-50"
+            >
+              <Pencil size={15} /> Edit
+            </Link>
+          )}
+          <button
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            className="flex items-center gap-1.5 rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+          >
+            <Trash2 size={15} /> {isAdmin && !isOwner ? 'Remove post' : 'Delete'}
+          </button>
+        </div>
+      )}
+
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-3xl border border-forest-100 bg-cream-50 p-8">
         <div className="flex flex-wrap items-center gap-3">
           <SubjectPill>{post.subject_name}</SubjectPill>
@@ -120,13 +167,22 @@ export default function TeacherPostDetail() {
                   <p className="text-xs text-ink-400 capitalize">{a.status}</p>
                 </div>
                 {a.status === 'pending' ? (
-                  <button
-                    onClick={() => acceptMutation.mutate(a.application_id)}
-                    disabled={acceptMutation.isPending}
-                    className="rounded-full bg-forest-900 px-5 py-2 text-sm font-semibold text-cream-50 hover:bg-forest-800 disabled:opacity-60"
-                  >
-                    Accept
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => acceptMutation.mutate(a.application_id)}
+                      disabled={acceptMutation.isPending || rejectMutation.isPending}
+                      className="rounded-full bg-forest-900 px-5 py-2 text-sm font-semibold text-cream-50 hover:bg-forest-800 disabled:opacity-60"
+                    >
+                      Accept
+                    </button>
+                    <button
+                      onClick={() => rejectMutation.mutate(a.application_id)}
+                      disabled={acceptMutation.isPending || rejectMutation.isPending}
+                      className="rounded-full border border-red-200 px-5 py-2 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                    >
+                      Reject
+                    </button>
+                  </div>
                 ) : a.status === 'accepted' ? (
                   <span className="flex items-center gap-1 text-sm font-semibold text-forest-700">
                     <CheckCircle2 size={15} /> Accepted

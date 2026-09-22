@@ -1,22 +1,50 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { getAllSubjects } from '@/services/studentService';
-import { createStudentRequest } from '@/services/postService';
+import { createStudentRequest, getStudentRequestById, updateStudentRequest } from '@/services/postService';
+import { Spinner } from '@/components/shared/Primitives';
 
 const categories = ['Home Tuition', 'Online Tuition', 'Group Tuition', 'Admission Coaching'];
 
+const EMPTY_FORM = {
+  subjectId: '', classLevel: '', salary: '', description: '',
+  location: '', categoryName: categories[0], daysPerWeek: '', preferredTime: '',
+  mode: 'both', preferredInstitution: '',
+};
+
 export default function PostRequest() {
   const navigate = useNavigate();
+  const { id } = useParams(); // present only on /requests/:id/edit
+  const isEditing = !!id;
+
   const { data: subjects } = useQuery({ queryKey: ['subjects'], queryFn: getAllSubjects });
-  const [form, setForm] = useState({
-    subjectId: '', classLevel: '', salary: '', description: '',
-    location: '', categoryName: categories[0], daysPerWeek: '', preferredTime: '',
-    mode: 'both', preferredInstitution: '',
+  const { data: existingRequest, isLoading: loadingRequest } = useQuery({
+    queryKey: ['request', id],
+    queryFn: () => getStudentRequestById(id),
+    enabled: isEditing,
   });
+
+  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!existingRequest) return;
+    setForm({
+      subjectId: existingRequest.subject_id ?? '',
+      classLevel: existingRequest.class_level ?? '',
+      salary: existingRequest.salary ?? '',
+      description: existingRequest.description ?? '',
+      location: existingRequest.location ?? '',
+      categoryName: existingRequest.category_name ?? categories[0],
+      daysPerWeek: existingRequest.days_per_week ?? '',
+      preferredTime: existingRequest.preferred_time ?? '',
+      mode: existingRequest.mode ?? 'both',
+      preferredInstitution: existingRequest.preferred_institution ?? '',
+    });
+  }, [existingRequest]);
 
   function update(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
@@ -28,21 +56,35 @@ export default function PostRequest() {
     }
     setSaving(true);
     try {
-      const req = await createStudentRequest(form);
-      toast.success('Request posted!');
-      navigate(`/requests/${req.request_id}`);
+      if (isEditing) {
+        await updateStudentRequest(id, { ...form, status: existingRequest?.status });
+        toast.success('Request updated!');
+        navigate(`/requests/${id}`);
+      } else {
+        const req = await createStudentRequest(form);
+        toast.success('Request posted!');
+        navigate(`/requests/${req.request_id}`);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to post request');
+      toast.error(err.response?.data?.error || (isEditing ? 'Failed to update request' : 'Failed to post request'));
     } finally {
       setSaving(false);
     }
   }
 
+  if (isEditing && loadingRequest) {
+    return <div className="flex min-h-[60vh] items-center justify-center"><Spinner /></div>;
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-3xl font-semibold text-forest-950">Post a Request</h1>
-        <p className="mt-2 text-ink-600">Tell tutors exactly what you need.</p>
+        <h1 className="font-display text-3xl font-semibold text-forest-950">
+          {isEditing ? 'Edit Request' : 'Post a Request'}
+        </h1>
+        <p className="mt-2 text-ink-600">
+          {isEditing ? 'Update what tutors will see.' : 'Tell tutors exactly what you need.'}
+        </p>
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-5 rounded-3xl border border-forest-100 bg-cream-50 p-7 sm:grid-cols-2">
           <div>
@@ -107,7 +149,7 @@ export default function PostRequest() {
 
           <button type="submit" disabled={saving}
             className="sm:col-span-2 mt-2 rounded-xl bg-forest-900 py-3 font-semibold text-cream-50 hover:bg-forest-800 disabled:opacity-60">
-            {saving ? 'Posting…' : 'Post request'}
+            {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Post request'}
           </button>
         </form>
       </motion.div>

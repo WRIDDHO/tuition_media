@@ -36,7 +36,7 @@ async function getAllTeacherPosts() {
 
 async function getTeacherPostById(postId) {
   const result = await pool.query(
-    `SELECT tp.*, s.subject_name, u.full_name AS teacher_name
+    `SELECT tp.*, s.subject_name, u.full_name AS teacher_name, u.user_id AS teacher_user_id
      FROM teacher_tuition_posts tp
      JOIN subjects s ON s.subject_id = tp.subject_id
      JOIN teachers t ON t.teacher_id = tp.teacher_id
@@ -91,6 +91,16 @@ async function deleteTeacherPost(postId, teacherId) {
   return result.rows[0];
 }
 
+// Admin moderation: delete regardless of owner. Only reachable from the
+// admin branch in the controller (never exposed to a non-admin request).
+async function adminDeleteTeacherPost(postId) {
+  const result = await pool.query(
+    `DELETE FROM teacher_tuition_posts WHERE post_id = $1 RETURNING *`,
+    [postId]
+  );
+  return result.rows[0];
+}
+
 module.exports = {
   createTeacherPost,
   getAllTeacherPosts,
@@ -98,4 +108,5 @@ module.exports = {
   getPostsByTeacher,
   updateTeacherPost,
   deleteTeacherPost,
+  adminDeleteTeacherPost,
 };

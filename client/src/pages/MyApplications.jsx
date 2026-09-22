@@ -1,9 +1,14 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, ResponsiveContainer, Cell } from 'recharts';
-import { CheckCircle2, Clock, XCircle, Star } from 'lucide-react';
-import { getMyPostApplications } from '@/services/activityService';
+import { CheckCircle2, Clock, XCircle, Star, X } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useAuth } from '@/context/AuthContext';
+import {
+  getMyPostApplications, withdrawApplication,
+  getMyRequestApplications, withdrawRequestApplication,
+} from '@/services/activityService';
 import { EmptyState, Spinner } from '@/components/shared/Primitives';
 
 const statusStyle = {
@@ -13,10 +18,28 @@ const statusStyle = {
 };
 
 export default function MyApplications() {
+  const { user } = useAuth();
+  const isTeacher = user?.role === 'teacher';
+  const queryClient = useQueryClient();
+
   const { data: applications, isLoading } = useQuery({
-    queryKey: ['my-post-applications'],
-    queryFn: getMyPostApplications,
+    queryKey: isTeacher ? ['my-request-applications'] : ['my-post-applications'],
+    queryFn: isTeacher ? getMyRequestApplications : getMyPostApplications,
   });
+
+  const withdrawMutation = useMutation({
+    mutationFn: (applicationId) => (isTeacher ? withdrawRequestApplication(applicationId) : withdrawApplication(applicationId)),
+    onSuccess: () => {
+      toast.success('Application withdrawn');
+      queryClient.invalidateQueries({ queryKey: isTeacher ? ['my-request-applications'] : ['my-post-applications'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not withdraw application'),
+  });
+
+  function handleWithdraw(applicationId) {
+    if (!window.confirm('Withdraw this application?')) return;
+    withdrawMutation.mutate(applicationId);
+  }
 
   const summary = useMemo(() => {
     if (!applications?.length) return [];
@@ -34,7 +57,9 @@ export default function MyApplications() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="font-display text-3xl font-semibold text-forest-950">My Applications</h1>
-      <p className="mt-2 text-ink-600">Posts you've applied to, and their current status.</p>
+      <p className="mt-2 text-ink-600">
+        {isTeacher ? "Student requests you've applied to, and their current status." : "Posts you've applied to, and their current status."}
+      </p>
 
       {!applications?.length ? (
         <div className="mt-8"><EmptyState title="You haven't applied anywhere yet" /></div>
@@ -73,9 +98,16 @@ export default function MyApplications() {
                   key={a.application_id}
                   className="flex items-center justify-between rounded-2xl border border-forest-100 bg-cream-50 p-5"
                 >
-                  <Link to={`/teacher-posts/${a.post_id}`} className="flex-1 hover:opacity-80">
-                    <p className="font-semibold text-forest-900">{a.title}</p>
-                    {a.expected_salary && <p className="text-sm text-ink-600">৳{a.expected_salary}/month</p>}
+                  <Link
+                    to={isTeacher ? `/requests/${a.request_id}` : `/teacher-posts/${a.post_id}`}
+                    className="flex-1 hover:opacity-80"
+                  >
+                    <p className="font-semibold text-forest-900">
+                      {isTeacher ? (a.class_level || 'Tuition request') : a.title}
+                    </p>
+                    {(a.expected_salary || a.salary) && (
+                      <p className="text-sm text-ink-600">৳{a.expected_salary || a.salary}/month</p>
+                    )}
                   </Link>
 
                   <div className="flex items-center gap-3">
@@ -83,7 +115,18 @@ export default function MyApplications() {
                       <st.icon size={13} /> {a.status}
                     </span>
 
-                    {a.status === 'accepted' && a.match_id && (
+                    {a.status === 'pending' && (
+                      <button
+                        onClick={() => handleWithdraw(a.application_id)}
+                        disabled={withdrawMutation.isPending}
+                        title="Withdraw application"
+                        className="flex items-center gap-1 rounded-full border border-red-200 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
+                      >
+                        <X size={12} /> Withdraw
+                      </button>
+                    )}
+
+                    {!isTeacher && a.status === 'accepted' && a.match_id && (
                       <Link
                         to={`/reviews/write/${a.match_id}`}
                         className="flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-200"

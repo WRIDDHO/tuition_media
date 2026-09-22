@@ -1,13 +1,21 @@
+import { useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { MapPin, Briefcase, Phone, GraduationCap } from 'lucide-react';
+import { MapPin, Briefcase, Phone, GraduationCap, Pencil, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { getTeacherById } from '@/services/teacherService';
-import { getReviewsForTeacher } from '@/services/studentService';
+import { getReviewsForTeacher, updateReview, deleteReview } from '@/services/studentService';
+import { useAuth } from '@/context/AuthContext';
 import { RatingStars, Spinner, EmptyState } from '@/components/shared/Primitives';
 
 export default function TeacherProfile() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [editRating, setEditRating] = useState(5);
+  const [editComment, setEditComment] = useState('');
 
   const { data: teacher, isLoading } = useQuery({
     queryKey: ['teacher', id],
@@ -19,6 +27,41 @@ export default function TeacherProfile() {
     queryFn: () => getReviewsForTeacher(id),
     enabled: !!id,
   });
+
+  function invalidateReviews() {
+    queryClient.invalidateQueries({ queryKey: ['teacher-reviews', id] });
+    queryClient.invalidateQueries({ queryKey: ['teacher', id] });
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: ({ reviewId, rating, comment }) => updateReview(reviewId, { rating, comment }),
+    onSuccess: () => {
+      toast.success('Review updated');
+      setEditingReviewId(null);
+      invalidateReviews();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not update review'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (reviewId) => deleteReview(reviewId),
+    onSuccess: () => {
+      toast.success('Review deleted');
+      invalidateReviews();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not delete review'),
+  });
+
+  function startEditing(r) {
+    setEditingReviewId(r.review_id);
+    setEditRating(r.rating);
+    setEditComment(r.comment || '');
+  }
+
+  function handleDelete(reviewId) {
+    if (!window.confirm('Delete your review? This cannot be undone.')) return;
+    deleteMutation.mutate(reviewId);
+  }
 
   if (isLoading) {
     return <div className="flex min-h-[60vh] items-center justify-center"><Spinner /></div>;
@@ -81,15 +124,74 @@ export default function TeacherProfile() {
           <p className="mt-4 text-sm text-ink-600">No reviews yet.</p>
         ) : (
           <div className="mt-5 space-y-4">
-            {reviewData.reviews.map((r) => (
-              <div key={r.review_id} className="rounded-2xl border border-forest-100 bg-cream-50 p-5">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold text-forest-900">{r.reviewer_name}</p>
-                  <RatingStars rating={r.rating} size={13} />
+            {reviewData.reviews.map((r) => {
+              const isOwner = user?.userId === r.reviewer_user_id;
+              const isEditingThis = editingReviewId === r.review_id;
+              return (
+                <div key={r.review_id} className="rounded-2xl border border-forest-100 bg-cream-50 p-5">
+                  <div className="flex items-center justify-between">
+                    <p className="font-semibold text-forest-900">{r.reviewer_name}</p>
+                    <div className="flex items-center gap-2">
+                      {!isEditingThis && <RatingStars rating={r.rating} size={13} />}
+                      {isOwner && !isEditingThis && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => startEditing(r)}
+                            className="rounded-lg p-1 text-ink-400 hover:bg-white hover:text-forest-700"
+                            aria-label="Edit review"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(r.review_id)}
+                            disabled={deleteMutation.isPending}
+                            className="rounded-lg p-1 text-ink-400 hover:bg-white hover:text-red-600"
+                            aria-label="Delete review"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {isEditingThis ? (
+                    <div className="mt-3 space-y-2">
+                      <select
+                        value={editRating}
+                        onChange={(e) => setEditRating(Number(e.target.value))}
+                        className="rounded-lg border border-forest-100 bg-white px-3 py-1.5 text-sm outline-none focus:border-forest-700"
+                      >
+                        {[5, 4, 3, 2, 1].map((n) => <option key={n} value={n}>{n} star{n === 1 ? '' : 's'}</option>)}
+                      </select>
+                      <textarea
+                        value={editComment}
+                        onChange={(e) => setEditComment(e.target.value)}
+                        rows={2}
+                        className="w-full rounded-lg border border-forest-100 bg-white p-2 text-sm outline-none focus:border-forest-700"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateMutation.mutate({ reviewId: r.review_id, rating: editRating, comment: editComment })}
+                          disabled={updateMutation.isPending}
+                          className="rounded-full bg-forest-900 px-4 py-1.5 text-xs font-semibold text-cream-50 hover:bg-forest-800 disabled:opacity-60"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingReviewId(null)}
+                          className="rounded-full border border-forest-100 px-4 py-1.5 text-xs font-semibold text-ink-600 hover:bg-white"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    r.comment && <p className="mt-2 text-sm text-ink-600">{r.comment}</p>
+                  )}
                 </div>
-                {r.comment && <p className="mt-2 text-sm text-ink-600">{r.comment}</p>}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

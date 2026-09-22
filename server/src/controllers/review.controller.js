@@ -1,6 +1,8 @@
-const { createReview, getReviewsForTeacher, findMatch } = require('../models/review.model');
+const { createReview, getReviewsForTeacher, findMatch, updateReview, deleteReview, adminDeleteReview } = require('../models/review.model');
 const { findTeacherById } = require('../models/teacher.model');
-
+const { isValidId } = require('../utils/validate');
+const { sendDbError } = require('../utils/dbErrors');
+const { logAdminAction } = require('../utils/auditLog');
 async function create(req, res) {
   try {
     const { matchId, rating, comment } = req.body;
@@ -35,8 +37,7 @@ async function create(req, res) {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'You already reviewed this match.' });
     }
-    console.error('CreateReview error:', err.message);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    sendDbError(res, err, 'CreateReview');
   }
 }
 
@@ -53,9 +54,62 @@ async function listForTeacher(req, res) {
       reviews,
     });
   } catch (err) {
-    console.error('ListReviews error:', err.message);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    sendDbError(res, err, 'ListReviews');
   }
 }
 
-module.exports = { create, listForTeacher };
+// FIXED (Phase 3, flagged in the Phase 1 audit): reviews previously had
+// no update/delete -- only the reviewer themself may touch their own
+// review, enforced in SQL (see review.model.js), never trusted from the
+// request. The existing after_review_change trigger recalculates the
+// teacher's avg_rating/total_reviews automatically either way.
+async function update(req, res) {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid review id.' });
+    }
+
+    const { rating, comment } = req.body;
+    if (rating !== undefined && (rating < 1 || rating > 5)) {
+      return res.status(400).json({ error: 'rating must be between 1 and 5.' });
+    }
+
+    // FIXED: previously an omitted field became NULL in the DB. Now the
+    // model itself keeps whatever wasn't sent (see review.model.js).
+    const updated = await updateReview(req.params.id, req.user.userId, { rating, comment });
+    if (!updated) {
+      return res.status(404).json({ error: 'Review not found or you do not own it.' });
+    }
+    res.status(200).json({ message: 'Review updated', review: updated });
+  } catch (err) {
+    sendDbError(res, err, 'UpdateReview');
+  }
+}
+
+
+async function remove(req, res) {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid review id.' });
+    }
+
+    let deleted;
+    if (req.user.role === 'admin') {
+      deleted = await adminDeleteReview(req.params.id);
+      if (deleted) {
+        await logAdminAction(req.user.userId, 'review_removed', 'review', Number(req.params.id), null);
+      }
+    } else {
+      deleted = await deleteReview(req.params.id, req.user.userId);
+    }
+
+    if (!deleted) {
+      return res.status(404).json({ error: 'Review not found or you do not own it.' });
+    }
+    res.status(200).json({ message: 'Review deleted' });
+  } catch (err) {
+    sendDbError(res, err, 'DeleteReview');
+  }
+}
+
+module.exports = { create, listForTeacher, update, remove };

@@ -32,4 +32,38 @@ async function findMatch(matchId) {
   return result.rows[0];
 }
 
-module.exports = { createReview, getReviewsForTeacher, findMatch };
+// FIXED (Phase 3, flagged in the Phase 1 audit): reviews previously had no
+// update/delete at all. Only rating/comment can change -- match_id and
+// reviewee_user_id are fixed at creation and never editable, so a review
+// can't be silently redirected at a different teacher. Ownership is
+// enforced by reviewer_user_id in the WHERE clause, never trusted from
+// the request body. The existing after_review_change trigger (see
+// database/functions.sql) automatically recalculates the teacher's
+// avg_rating/total_reviews on both of these -- nothing extra to do here.
+async function updateReview(reviewId, reviewerUserId, { rating, comment }) {
+  const result = await pool.query(
+    `UPDATE reviews
+     SET rating = COALESCE($1, rating), comment = COALESCE($2, comment)
+     WHERE review_id = $3 AND reviewer_user_id = $4
+     RETURNING *`,
+    [rating ?? null, comment ?? null, reviewId, reviewerUserId]
+  );
+  return result.rows[0];
+}
+
+async function deleteReview(reviewId, reviewerUserId) {
+  const result = await pool.query(
+    `DELETE FROM reviews WHERE review_id = $1 AND reviewer_user_id = $2 RETURNING *`,
+    [reviewId, reviewerUserId]
+  );
+  return result.rows[0];
+}
+async function adminDeleteReview(reviewId) {
+  const result = await pool.query(
+    `DELETE FROM reviews WHERE review_id = $1 RETURNING *`,
+    [reviewId]
+  );
+  return result.rows[0];
+}
+//module.exports = { createReview, getReviewsForTeacher, findMatch, updateReview, deleteReview };
+module.exports = { createReview, getReviewsForTeacher, findMatch, updateReview, deleteReview, adminDeleteReview };

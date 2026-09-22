@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, User, ChevronDown, LayoutDashboard, FileEdit, ClipboardList, Bookmark, LogOut, PlusCircle, Settings } from 'lucide-react';
+import { Menu, X, Bell, User, ChevronDown, LayoutDashboard, FileEdit, ClipboardList, Bookmark, LogOut, PlusCircle, Settings, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const navLinks = [
@@ -36,7 +36,15 @@ function AccountMenu({ user, logout }) {
   }, []);
 
   const isTeacher = user.role === 'teacher';
-  const items = [
+  const isAdmin = user.role === 'admin';
+  // Admins don't have a teacher/student profile or posts -- they get their
+  // own short menu instead of the profile/post items below.
+  const items = isAdmin
+    ? [
+        { icon: ShieldCheck, label: 'Admin panel', to: '/admin' },
+        { icon: Settings, label: 'Account settings', to: '/account/settings' },
+      ]
+    : [
     { icon: LayoutDashboard, label: 'Dashboard', to: '/dashboard' },
     { icon: Settings, label: 'Account settings', to: '/account/settings' },
     { icon: FileEdit, label: 'Edit profile', to: isTeacher ? '/teachers/me/edit' : '/students/me/edit' },
@@ -46,7 +54,10 @@ function AccountMenu({ user, logout }) {
       to: isTeacher ? '/teacher-posts/new' : '/requests/new',
     },
     ...(isTeacher
-      ? [{ icon: PlusCircle, label: 'Upload a resource', to: '/resources/new' }]
+      ? [
+          { icon: PlusCircle, label: 'Upload a resource', to: '/resources/new' },
+          { icon: ClipboardList, label: 'My applications', to: '/my-applications' },
+        ]
       : [
           { icon: ClipboardList, label: 'My applications', to: '/my-applications' },
           { icon: Bookmark, label: 'My bookmarks', to: '/bookmarks' },
@@ -101,6 +112,14 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
 
+  // FIXED: admins used to see the same public marketplace nav (Find a
+  // Tutor / Tutor Openings / Job Board / Q&A / Resources) as everyone
+  // else. Admins get their own short menu (Admin panel / Account
+  // settings) via AccountMenu, so the public nav links are hidden for
+  // them here -- both the desktop bar and the mobile menu below use this
+  // same list instead of the raw navLinks constant.
+  const visibleNavLinks = user?.role === 'admin' ? [] : navLinks;
+
   return (
     <header className="sticky top-0 z-50 border-b border-forest-100 bg-cream-50/90 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
@@ -110,7 +129,7 @@ export default function Navbar() {
         </Link>
 
         <nav className="hidden items-center gap-7 lg:flex">
-          {navLinks.map((link) => (
+          {visibleNavLinks.map((link) => (
             <Link
               key={link.to}
               to={link.to}
@@ -162,7 +181,7 @@ export default function Navbar() {
             className="overflow-hidden border-t border-forest-100 bg-cream-50 lg:hidden"
           >
             <div className="flex flex-col gap-1 px-6 py-4">
-              {navLinks.map((link) => (
+              {visibleNavLinks.map((link) => (
                 <Link key={link.to} to={link.to} onClick={() => setOpen(false)} className="py-2 font-medium text-ink-600">
                   {link.label}
                 </Link>

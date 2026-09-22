@@ -30,11 +30,14 @@ async function findTeacherByUserId(userId) {
 }
 
 async function findTeacherById(teacherId) {
+  // FIXED (Phase 2): only an active (approved) teacher's profile is public.
+  // A pending/rejected/suspended teacher must not be viewable via this
+  // endpoint -- previously there was no account_status check at all here.
   const result = await pool.query(
     `SELECT t.*, u.full_name, u.email
      FROM teachers t
      JOIN users u ON u.user_id = t.user_id
-     WHERE t.teacher_id = $1`,
+     WHERE t.teacher_id = $1 AND u.account_status = 'active'`,
     [teacherId]
   );
   return result.rows[0];
@@ -58,6 +61,8 @@ async function updateTeacherProfile(userId, data) {
   );
   return result.rows[0];
 }
+
+//need to understand and work on that
 async function searchTeachers(filters) {
   const { subjectName, district, gender, minRate, maxRate, limit } = filters;
   const result = await pool.query(

@@ -1,3 +1,8 @@
+-- Run order: schema.sql -> database/migrations/*.sql -> this file -> views.sql
+-- (approve_teacher/reject_teacher/set_user_account_status below insert into
+-- audit_logs, added in migrations/005; they and the account-status trigger
+-- also rely on the 'pending'/'rejected' values added in migrations/001.)
+
 DROP FUNCTION IF EXISTS search_teachers(TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER);
 CREATE OR REPLACE FUNCTION search_teachers(
     p_subject_name TEXT DEFAULT NULL,
@@ -42,7 +47,12 @@ BEGIN
     FROM teachers t
     INNER JOIN users u ON u.user_id = t.user_id
     WHERE
-        (p_subject_name IS NULL OR EXISTS (
+        u.account_status = 'active'
+        -- FIXED (Phase 2): a pending/rejected/suspended teacher must not be
+        -- publicly searchable as if they were a verified tutor. This was
+        -- previously missing entirely -- every teacher showed up in search
+        -- results regardless of verification status.
+        AND (p_subject_name IS NULL OR EXISTS (
             SELECT 1 FROM teacher_subjects ts2
             JOIN subjects s2 ON s2.subject_id = ts2.subject_id
             WHERE ts2.teacher_id = t.teacher_id
@@ -128,49 +138,143 @@ BEGIN
     END;
 END;
 $$;
+
+-- ============================================================
+-- PROCEDURE: Mirror of accept_post_application for the other side of
+-- the marketplace (Phase 3) -- a STUDENT accepts a TEACHER's application
+-- to their own tuition request. Same shape: lock the row, verify the
+-- caller owns the request, reject every other pending applicant, create
+-- the match, wrap in exception handling. This was the missing half of
+-- the application workflow flagged in the Phase 1 audit (the model
+-- functions existed but nothing ever called accept/reject on this side).
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS accept_request_application(INTEGER, INTEGER);
+CREATE OR REPLACE PROCEDURE accept_request_application(
+    IN p_application_id INTEGER,
+    IN p_student_id INTEGER,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT,
+    OUT out_match_id INTEGER
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_request_id INTEGER;
+    v_teacher_id INTEGER;
+    v_request_owner_id INTEGER;
+    v_current_status VARCHAR(20);
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+    out_match_id := NULL;
+
+    BEGIN
+        -- Step 1: find the application, and lock this row so two accepts can't race
+        SELECT a.request_id, a.teacher_id, a.status, sr.student_id
+        INTO v_request_id, v_teacher_id, v_current_status, v_request_owner_id
+        FROM student_request_applications a
+        JOIN student_tuition_requests sr ON sr.request_id = a.request_id
+        WHERE a.application_id = p_application_id
+        FOR UPDATE;
+
+        IF v_request_id IS NULL THEN
+            out_message := 'Application not found';
+            RETURN;
+        END IF;
+
+        IF v_request_owner_id <> p_student_id THEN
+            out_message := 'You do not own this request';
+            RETURN;
+        END IF;
+
+        IF v_current_status <> 'pending' THEN
+            out_message := 'This application has already been ' || v_current_status;
+            RETURN;
+        END IF;
+
+        -- Step 2: mark this application accepted
+        UPDATE student_request_applications
+        SET status = 'accepted'
+        WHERE application_id = p_application_id;
+
+        -- Step 3: reject every OTHER pending application for the same request
+        UPDATE student_request_applications
+        SET status = 'rejected'
+        WHERE request_id = v_request_id
+          AND application_id <> p_application_id
+          AND status = 'pending';
+
+        -- Step 4: create the match
+        INSERT INTO matches (teacher_id, student_id, student_request_id, status)
+        VALUES (v_teacher_id, p_student_id, v_request_id, 'active')
+        RETURNING match_id INTO out_match_id;
+
+        out_success := TRUE;
+        out_message := 'Application accepted and match created';
+
+    EXCEPTION WHEN OTHERS THEN
+        out_success := FALSE;
+        out_message := SQLERRM;
+        out_match_id := NULL;
+        RETURN;
+    END;
+END;
+$$;
 -- ============================================================
 -- TRIGGER: Auto-update teacher's avg_rating whenever a review
 -- is inserted, updated, or deleted
+--
+-- FIXED (database-foundation phase): the original version only ever
+-- recalculated for NEW.reviewee_user_id. That silently went stale the
+-- moment reviewee_user_id could change on an UPDATE -- which is exactly
+-- what migration 003's `ON DELETE SET NULL` on reviews.reviewee_user_id
+-- now causes when a teacher's account is deleted. The teacher's row
+-- would keep its old avg_rating/total_reviews forever. Split into a
+-- reusable recompute_teacher_rating() helper so both the old and the new
+-- reviewee (when they differ) get recalculated.
 -- ============================================================
 
-CREATE OR REPLACE FUNCTION update_teacher_rating()
-RETURNS TRIGGER AS $$
-DECLARE
-    v_teacher_user_id INTEGER;
-    v_teacher_id INTEGER;
+CREATE OR REPLACE FUNCTION recompute_teacher_rating(p_teacher_user_id INTEGER)
+RETURNS VOID AS $$
 BEGIN
-    -- Figure out which teacher's rating needs recalculating.
-    -- On DELETE, the row is in OLD; on INSERT/UPDATE, it's in NEW.
-    IF TG_OP = 'DELETE' THEN
-        v_teacher_user_id := OLD.reviewee_user_id;
-    ELSE
-        v_teacher_user_id := NEW.reviewee_user_id;
+    IF p_teacher_user_id IS NULL THEN
+        RETURN;
     END IF;
 
-    SELECT teacher_id INTO v_teacher_id
-    FROM teachers
-    WHERE user_id = v_teacher_user_id;
-
-    -- If the reviewee wasn't a teacher (e.g. a student), there's nothing to update
-    IF v_teacher_id IS NULL THEN
-        RETURN NULL;
-    END IF;
-
+    -- If the reviewee wasn't a teacher (e.g. a student), there's nothing to update.
     UPDATE teachers
     SET
         avg_rating = COALESCE((
             SELECT ROUND(AVG(r.rating)::NUMERIC, 2)
             FROM reviews r
-            WHERE r.reviewee_user_id = v_teacher_user_id
+            WHERE r.reviewee_user_id = p_teacher_user_id
         ), 0),
         total_reviews = (
             SELECT COUNT(*)
             FROM reviews r
-            WHERE r.reviewee_user_id = v_teacher_user_id
+            WHERE r.reviewee_user_id = p_teacher_user_id
         )
-    WHERE teacher_id = v_teacher_id;
+    WHERE user_id = p_teacher_user_id;
+END;
+$$ LANGUAGE plpgsql;
 
-    RETURN NULL;
+CREATE OR REPLACE FUNCTION update_teacher_rating()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        PERFORM recompute_teacher_rating(OLD.reviewee_user_id);
+        RETURN NULL;
+    ELSIF TG_OP = 'UPDATE' THEN
+        PERFORM recompute_teacher_rating(NEW.reviewee_user_id);
+        IF NEW.reviewee_user_id IS DISTINCT FROM OLD.reviewee_user_id THEN
+            PERFORM recompute_teacher_rating(OLD.reviewee_user_id);
+        END IF;
+        RETURN NULL;
+    ELSE -- INSERT
+        PERFORM recompute_teacher_rating(NEW.reviewee_user_id);
+        RETURN NULL;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -179,6 +283,56 @@ CREATE TRIGGER after_review_change
     AFTER INSERT OR UPDATE OR DELETE ON reviews
     FOR EACH ROW
     EXECUTE FUNCTION update_teacher_rating();
+
+-- ============================================================
+-- TRIGGER: A review may only be created against a match that
+-- hasn't been cancelled, and only by the student on that match.
+--
+-- The API (review.controller.js) already checks the reviewer owns the
+-- match; this trigger backs that with a database-level guarantee that
+-- holds no matter which code path inserts the row. The status check is
+-- intentionally "not cancelled" rather than "must be completed": there is
+-- currently no workflow step anywhere in the app that ever moves a match
+-- out of 'active', so requiring 'completed' here would make it
+-- impossible to leave any review at all. Tighten this to
+-- `v_match_status <> 'completed'` once a "mark match completed" feature
+-- exists (see audit notes).
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION validate_review_before_insert()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_match_status VARCHAR(20);
+    v_match_student_user_id INTEGER;
+BEGIN
+    SELECT m.status, u.user_id
+    INTO v_match_status, v_match_student_user_id
+    FROM matches m
+    JOIN students s ON s.student_id = m.student_id
+    JOIN users u ON u.user_id = s.user_id
+    WHERE m.match_id = NEW.match_id;
+
+    IF v_match_status IS NULL THEN
+        RAISE EXCEPTION 'Match % does not exist.', NEW.match_id;
+    END IF;
+
+    IF v_match_status = 'cancelled' THEN
+        RAISE EXCEPTION 'You cannot review a cancelled match.';
+    END IF;
+
+    IF NEW.reviewer_user_id IS DISTINCT FROM v_match_student_user_id THEN
+        RAISE EXCEPTION 'Only the student on this match can leave this review.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS before_review_insert ON reviews;
+CREATE TRIGGER before_review_insert
+    BEFORE INSERT ON reviews
+    FOR EACH ROW
+    EXECUTE FUNCTION validate_review_before_insert();
     -- ============================================================
 -- TRIGGER: Notify the student when their post-application status changes
 -- ============================================================
@@ -265,3 +419,347 @@ CREATE TRIGGER after_answer_insert
     AFTER INSERT ON answers
     FOR EACH ROW
     EXECUTE FUNCTION notify_on_new_answer();
+
+-- ============================================================
+-- PROCEDURE: Admin approves a pending teacher application.
+--
+-- Multi-step + transactional: locks the user row, flips account_status,
+-- and writes an audit log entry, all inside one implicit transaction
+-- (a procedure body runs atomically -- if anything after the UPDATE
+-- fails, the UPDATE itself is rolled back too). The teacher's own
+-- notification is NOT inserted here -- it's handled by the
+-- after_account_status_change trigger below, so it fires no matter which
+-- code path changes the status, not just this one.
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS approve_teacher(INTEGER, INTEGER);
+CREATE OR REPLACE PROCEDURE approve_teacher(
+    IN p_admin_id INTEGER,
+    IN p_teacher_user_id INTEGER,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_role user_role;
+    v_status VARCHAR(20);
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+
+    BEGIN
+        SELECT role, account_status INTO v_role, v_status
+        FROM users
+        WHERE user_id = p_teacher_user_id
+        FOR UPDATE;
+
+        IF v_role IS NULL THEN
+            out_message := 'User not found';
+            RETURN;
+        END IF;
+
+        IF v_role <> 'teacher' THEN
+            out_message := 'This user is not a teacher account';
+            RETURN;
+        END IF;
+
+        IF v_status <> 'pending' THEN
+            out_message := 'This teacher is already ' || v_status;
+            RETURN;
+        END IF;
+
+        UPDATE users SET account_status = 'active' WHERE user_id = p_teacher_user_id;
+
+        INSERT INTO audit_logs (admin_id, action, target_type, target_id, details)
+        VALUES (p_admin_id, 'teacher_approved', 'user', p_teacher_user_id, NULL);
+
+        out_success := TRUE;
+        out_message := 'Teacher approved';
+
+    EXCEPTION WHEN OTHERS THEN
+        out_success := FALSE;
+        out_message := SQLERRM;
+    END;
+END;
+$$;
+
+-- ============================================================
+-- PROCEDURE: Admin rejects a pending teacher application.
+-- Same shape as approve_teacher, records the admin's reason.
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS reject_teacher(INTEGER, INTEGER, TEXT);
+CREATE OR REPLACE PROCEDURE reject_teacher(
+    IN p_admin_id INTEGER,
+    IN p_teacher_user_id INTEGER,
+    IN p_reason TEXT,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_role user_role;
+    v_status VARCHAR(20);
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+
+    BEGIN
+        SELECT role, account_status INTO v_role, v_status
+        FROM users
+        WHERE user_id = p_teacher_user_id
+        FOR UPDATE;
+
+        IF v_role IS NULL THEN
+            out_message := 'User not found';
+            RETURN;
+        END IF;
+
+        IF v_role <> 'teacher' THEN
+            out_message := 'This user is not a teacher account';
+            RETURN;
+        END IF;
+
+        IF v_status <> 'pending' THEN
+            out_message := 'This teacher is already ' || v_status;
+            RETURN;
+        END IF;
+
+        UPDATE users SET account_status = 'rejected' WHERE user_id = p_teacher_user_id;
+
+        INSERT INTO audit_logs (admin_id, action, target_type, target_id, details)
+        VALUES (
+            p_admin_id, 'teacher_rejected', 'user', p_teacher_user_id,
+            jsonb_build_object('reason', p_reason)
+        );
+
+        out_success := TRUE;
+        out_message := 'Teacher rejected';
+
+    EXCEPTION WHEN OTHERS THEN
+        out_success := FALSE;
+        out_message := SQLERRM;
+    END;
+END;
+$$;
+
+-- ============================================================
+-- PROCEDURE: Admin suspends or reactivates any existing account
+-- (student, teacher, or another admin). One generic, reusable procedure
+-- instead of near-identical suspend/activate copies. Deliberately refuses
+-- to touch a pending/rejected teacher -- that transition belongs to
+-- approve_teacher/reject_teacher, which carry their own audit action names.
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS set_user_account_status(INTEGER, INTEGER, VARCHAR, TEXT);
+CREATE OR REPLACE PROCEDURE set_user_account_status(
+    IN p_admin_id INTEGER,
+    IN p_target_user_id INTEGER,
+    IN p_new_status VARCHAR(20),
+    IN p_reason TEXT,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_current_status VARCHAR(20);
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+
+    IF p_new_status NOT IN ('active', 'suspended') THEN
+        out_message := 'new_status must be active or suspended';
+        RETURN;
+    END IF;
+
+    BEGIN
+        SELECT account_status INTO v_current_status
+        FROM users
+        WHERE user_id = p_target_user_id
+        FOR UPDATE;
+
+        IF v_current_status IS NULL THEN
+            out_message := 'User not found';
+            RETURN;
+        END IF;
+
+        IF v_current_status = p_new_status THEN
+            out_message := 'User is already ' || p_new_status;
+            RETURN;
+        END IF;
+
+        IF v_current_status IN ('pending', 'rejected') THEN
+            out_message := 'Use approve_teacher/reject_teacher for a pending or rejected teacher';
+            RETURN;
+        END IF;
+
+        UPDATE users SET account_status = p_new_status WHERE user_id = p_target_user_id;
+
+        INSERT INTO audit_logs (admin_id, action, target_type, target_id, details)
+        VALUES (
+            p_admin_id,
+            CASE WHEN p_new_status = 'suspended' THEN 'user_suspended' ELSE 'user_activated' END,
+            'user', p_target_user_id,
+            jsonb_build_object('reason', p_reason)
+        );
+
+        out_success := TRUE;
+        out_message := 'User status updated to ' || p_new_status;
+
+    EXCEPTION WHEN OTHERS THEN
+        out_success := FALSE;
+        out_message := SQLERRM;
+    END;
+END;
+$$;
+
+-- ============================================================
+-- TRIGGER: Notify a user whenever an admin changes their
+-- account_status (teacher approved/rejected, any account
+-- suspended/reactivated).
+--
+-- Lives as a trigger on the actual data change -- not inside the
+-- procedures above -- so it fires no matter which code path performs the
+-- UPDATE, consistent with the other notification triggers in this file.
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION notify_on_account_status_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_message TEXT;
+BEGIN
+    v_message := CASE NEW.account_status
+        WHEN 'active'    THEN CASE WHEN OLD.account_status = 'pending'
+                                    THEN 'Your teacher account has been approved. You can now use all teacher features.'
+                                    ELSE 'Your account has been reactivated.' END
+        WHEN 'rejected'  THEN 'Your teacher application was not approved.'
+        WHEN 'suspended' THEN 'Your account has been suspended. Contact support for details.'
+        ELSE NULL
+    END;
+
+    IF v_message IS NOT NULL THEN
+        INSERT INTO notifications (user_id, type, message, link)
+        VALUES (NEW.user_id, 'account_status_change', v_message, '/account/settings');
+    END IF;
+
+    RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS after_account_status_change ON users;
+CREATE TRIGGER after_account_status_change
+    AFTER UPDATE ON users
+    FOR EACH ROW
+    WHEN (NEW.account_status IS DISTINCT FROM OLD.account_status)
+    EXECUTE FUNCTION notify_on_account_status_change();
+
+-- ============================================================
+-- FUNCTION: One round-trip for every number the admin dashboard needs, so
+-- the dashboard (next phase) never hard-codes a statistic (spec section 16).
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION get_platform_stats()
+RETURNS TABLE (
+    total_students INTEGER,
+    total_teachers INTEGER,
+    pending_teachers INTEGER,
+    suspended_users INTEGER,
+    active_teacher_posts INTEGER,
+    active_student_requests INTEGER,
+    total_applications INTEGER,
+    total_matches INTEGER,
+    total_questions INTEGER,
+    total_resources INTEGER,
+    pending_reports INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        (SELECT COUNT(*) FROM users WHERE role = 'student')::INTEGER,
+        (SELECT COUNT(*) FROM users WHERE role = 'teacher')::INTEGER,
+        (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND account_status = 'pending')::INTEGER,
+        (SELECT COUNT(*) FROM users WHERE account_status = 'suspended')::INTEGER,
+        (SELECT COUNT(*) FROM teacher_tuition_posts WHERE status = 'active')::INTEGER,
+        (SELECT COUNT(*) FROM student_tuition_requests WHERE status = 'active')::INTEGER,
+        ((SELECT COUNT(*) FROM teacher_post_applications) +
+         (SELECT COUNT(*) FROM student_request_applications))::INTEGER,
+        (SELECT COUNT(*) FROM matches)::INTEGER,
+        (SELECT COUNT(*) FROM questions)::INTEGER,
+        (SELECT COUNT(*) FROM resources)::INTEGER,
+        (SELECT COUNT(*) FROM reports WHERE status = 'pending')::INTEGER;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- ============================================================
+-- PROCEDURE: Admin deletes a student or teacher account entirely.
+--
+-- Deliberately refuses to delete an admin account this way. The DELETE
+-- itself relies on the ON DELETE behavior already defined on every other
+-- table's foreign keys (migrations 002/003): a user with match/review
+-- history cannot be hard-deleted (RESTRICT on matches.teacher_id/
+-- student_id) -- that FK violation is caught below and turned into a
+-- clear message instead of a raw Postgres error reaching the API.
+--
+-- The audit log entry is written BEFORE the delete, inside the same
+-- exception block, so if the delete fails (e.g. the RESTRICT above), the
+-- implicit savepoint this block creates rolls the audit insert back too
+-- -- there is never a "user deleted" audit entry for a deletion that
+-- didn't actually happen.
+-- ============================================================
+
+DROP PROCEDURE IF EXISTS delete_user_account(INTEGER, INTEGER, TEXT);
+CREATE OR REPLACE PROCEDURE delete_user_account(
+    IN p_admin_id INTEGER,
+    IN p_target_user_id INTEGER,
+    IN p_reason TEXT,
+    OUT out_success BOOLEAN,
+    OUT out_message TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_role user_role;
+BEGIN
+    out_success := FALSE;
+    out_message := '';
+
+    BEGIN
+        SELECT role INTO v_role
+        FROM users
+        WHERE user_id = p_target_user_id
+        FOR UPDATE;
+
+        IF v_role IS NULL THEN
+            out_message := 'User not found';
+            RETURN;
+        END IF;
+
+        IF v_role = 'admin' THEN
+            out_message := 'Admin accounts cannot be deleted this way';
+            RETURN;
+        END IF;
+
+        INSERT INTO audit_logs (admin_id, action, target_type, target_id, details)
+        VALUES (
+            p_admin_id, 'user_deleted', 'user', p_target_user_id,
+            jsonb_build_object('reason', p_reason, 'role', v_role)
+        );
+
+        DELETE FROM users WHERE user_id = p_target_user_id;
+
+        out_success := TRUE;
+        out_message := 'User account deleted';
+
+    EXCEPTION
+        WHEN foreign_key_violation THEN
+            out_success := FALSE;
+            out_message := 'This account has match or review history and cannot be deleted. Suspend it instead.';
+        WHEN OTHERS THEN
+            out_success := FALSE;
+            out_message := SQLERRM;
+    END;
+END;
+$$;

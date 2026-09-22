@@ -15,7 +15,7 @@ router.get('/', listAll);
 router.post('/', verifyToken, requireRole('student'), resolveStudentId, create);
 router.get('/mine', verifyToken, requireRole('student'),resolveStudentId, listMine);
 router.put('/:id', verifyToken, requireRole('student'), resolveStudentId, update);
-router.delete('/:id', verifyToken, requireRole('student'),resolveStudentId, remove);
+router.delete('/:id', verifyToken, requireRole('student', 'admin'), resolveStudentId, remove);
 
 // Public wildcard LAST
 router.get('/:id', getOne);

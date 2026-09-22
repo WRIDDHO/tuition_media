@@ -21,6 +21,47 @@ export async function acceptApplication(applicationId) {
   return res.data; // { message, matchId }
 }
 
+export async function rejectApplication(applicationId) {
+  const res = await api.put(`/applications/posts/${applicationId}/reject`);
+  return res.data;
+}
+
+export async function withdrawApplication(applicationId) {
+  const res = await api.delete(`/applications/posts/${applicationId}`);
+  return res.data;
+}
+
+// ---------- Applications (teacher -> student's request direction) ----------
+export async function applyToRequest(requestId) {
+  const res = await api.post('/applications/requests/apply', { requestId });
+  return res.data.application;
+}
+
+export async function getMyRequestApplications() {
+  const res = await api.get('/applications/requests/mine');
+  return res.data.applications;
+}
+
+export async function getApplicationsForRequest(requestId) {
+  const res = await api.get(`/applications/requests/${requestId}`);
+  return res.data.applications;
+}
+
+export async function acceptRequestApplication(applicationId) {
+  const res = await api.put(`/applications/requests/${applicationId}/accept`);
+  return res.data; // { message, matchId }
+}
+
+export async function rejectRequestApplication(applicationId) {
+  const res = await api.put(`/applications/requests/${applicationId}/reject`);
+  return res.data;
+}
+
+export async function withdrawRequestApplication(applicationId) {
+  const res = await api.delete(`/applications/requests/${applicationId}`);
+  return res.data;
+}
+
 // ---------- Questions & Answers ----------
 export async function getAllQuestions(subjectId) {
   const res = await api.get('/questions', { params: subjectId ? { subjectId } : {} });
@@ -52,6 +93,26 @@ export async function acceptAnswer(answerId) {
   return res.data.answer;
 }
 
+export async function updateQuestion(id, data) {
+  const res = await api.put(`/questions/${id}`, data);
+  return res.data.question;
+}
+
+export async function deleteQuestion(id) {
+  const res = await api.delete(`/questions/${id}`);
+  return res.data;
+}
+
+export async function updateAnswer(answerId, data) {
+  const res = await api.put(`/answers/${answerId}`, data);
+  return res.data.answer;
+}
+
+export async function deleteAnswer(answerId) {
+  const res = await api.delete(`/answers/${answerId}`);
+  return res.data;
+}
+
 // ---------- Resources ----------
 export async function getAllResources(subjectId) {
   const res = await api.get('/resources', { params: subjectId ? { subjectId } : {} });
@@ -68,6 +129,16 @@ export async function uploadResource(formData) {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return res.data.resource;
+}
+
+export async function updateResource(id, data) {
+  const res = await api.put(`/resources/${id}`, data);
+  return res.data.resource;
+}
+
+export async function deleteResource(id) {
+  const res = await api.delete(`/resources/${id}`);
+  return res.data;
 }
 
 export function getResourceDownloadUrl(id) {
@@ -104,5 +175,9 @@ export async function markNotificationRead(id) {
 
 export async function markAllNotificationsRead() {
   const res = await api.put('/notifications/read-all');
+  return res.data;
+}
+export async function getAllMatches({ page = 1, limit = 20 } = {}) {
+  const res = await api.get('/admin/matches', { params: { page, limit } });
   return res.data;
 }

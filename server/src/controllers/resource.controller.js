@@ -1,9 +1,13 @@
 const {
   createResource, getAllResources, getResourceById,
-  getResourcesByTeacher, incrementDownloadCount, deleteResource,
+  getResourcesByTeacher, incrementDownloadCount, deleteResource, updateResource,
+  adminDeleteResource,
 } = require('../models/resource.model');
 const { buildResourceUrl } = require('../middleware/upload.middleware');
-
+const { cleanBody } = require('../utils/sanitize');
+const { isValidId } = require('../utils/validate');
+const { sendDbError } = require('../utils/dbErrors');
+const { logAdminAction } = require('../utils/auditLog');
 async function create(req, res) {
   try {
     const { subjectId, classLevel, title, description } = req.body;
@@ -74,17 +78,51 @@ async function download(req, res) {
   }
 }
 
+async function update(req, res) {
+  try {
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid resource id.' });
+    }
+
+    const body = cleanBody(req.body, ['subjectId']);
+    const { subjectId, classLevel, title, description } = body;
+
+    if (!title || !subjectId) {
+      return res.status(400).json({ error: 'title and subjectId are required.' });
+    }
+
+    const updated = await updateResource(req.params.id, req.teacherId, { subjectId, classLevel, title, description });
+    if (!updated) {
+      return res.status(404).json({ error: 'Resource not found or you do not own it.' });
+    }
+    res.status(200).json({ message: 'Resource updated', resource: updated });
+  } catch (err) {
+    sendDbError(res, err, 'UpdateResource');
+  }
+}
+
 async function remove(req, res) {
   try {
-    const deleted = await deleteResource(req.params.id, req.teacherId);
+    if (!isValidId(req.params.id)) {
+      return res.status(400).json({ error: 'Invalid resource id.' });
+    }
+
+    let deleted;
+    if (req.user.role === 'admin') {
+      deleted = await adminDeleteResource(req.params.id);
+      if (deleted) {
+        await logAdminAction(req.user.userId, 'resource_removed', 'resource', Number(req.params.id), { title: deleted.title });
+      }
+    } else {
+      deleted = await deleteResource(req.params.id, req.teacherId);
+    }
+
     if (!deleted) {
       return res.status(404).json({ error: 'Resource not found or you do not own it.' });
     }
     res.status(200).json({ message: 'Resource deleted' });
   } catch (err) {
-    console.error('DeleteResource error:', err.message);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    sendDbError(res, err, 'DeleteResource');
   }
 }
-
-module.exports = { create, listAll, getOne, listMine, download, remove };
+module.exports = { create, listAll, getOne, listMine, download, update, remove };

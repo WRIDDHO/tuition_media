@@ -1,20 +1,52 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { getAllSubjects } from '@/services/studentService';
-import { createTeacherPost } from '@/services/postService';
+import { createTeacherPost, getTeacherPostById, updateTeacherPost } from '@/services/postService';
+import { Spinner } from '@/components/shared/Primitives';
+
+const EMPTY_FORM = {
+  subjectId: '', title: '', description: '', expectedSalary: '', duration: '',
+  classLevel: '', location: '', mode: 'both', preferredGender: 'any',
+  vacancy: 1, daysPerWeek: '', preferredTime: '', deadline: '',
+};
 
 export default function PostTeacherPost() {
   const navigate = useNavigate();
+  const { id } = useParams(); // present only on /teacher-posts/:id/edit
+  const isEditing = !!id;
+
   const { data: subjects } = useQuery({ queryKey: ['subjects'], queryFn: getAllSubjects });
-  const [form, setForm] = useState({
-    subjectId: '', title: '', description: '', expectedSalary: '', duration: '',
-    classLevel: '', location: '', mode: 'both', preferredGender: 'any',
-    vacancy: 1, daysPerWeek: '', preferredTime: '', deadline: '',
+  const { data: existingPost, isLoading: loadingPost } = useQuery({
+    queryKey: ['teacher-post', id],
+    queryFn: () => getTeacherPostById(id),
+    enabled: isEditing,
   });
+
+  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+
+  // Prefill the form once the existing post loads (edit mode only).
+  useEffect(() => {
+    if (!existingPost) return;
+    setForm({
+      subjectId: existingPost.subject_id ?? '',
+      title: existingPost.title ?? '',
+      description: existingPost.description ?? '',
+      expectedSalary: existingPost.expected_salary ?? '',
+      duration: existingPost.duration ?? '',
+      classLevel: existingPost.class_level ?? '',
+      location: existingPost.location ?? '',
+      mode: existingPost.mode ?? 'both',
+      preferredGender: existingPost.preferred_gender ?? 'any',
+      vacancy: existingPost.vacancy ?? 1,
+      daysPerWeek: existingPost.days_per_week ?? '',
+      preferredTime: existingPost.preferred_time ?? '',
+      deadline: existingPost.deadline ? String(existingPost.deadline).slice(0, 10) : '',
+    });
+  }, [existingPost]);
 
   function update(k, v) { setForm((f) => ({ ...f, [k]: v })); }
 
@@ -26,21 +58,37 @@ export default function PostTeacherPost() {
     }
     setSaving(true);
     try {
-      const post = await createTeacherPost(form);
-      toast.success('Post published!');
-      navigate(`/teacher-posts/${post.post_id}`);
+      if (isEditing) {
+        // status is preserved as-is by the backend when omitted; send it
+        // through so an edit never accidentally resets it.
+        await updateTeacherPost(id, { ...form, status: existingPost?.status });
+        toast.success('Post updated!');
+        navigate(`/teacher-posts/${id}`);
+      } else {
+        const post = await createTeacherPost(form);
+        toast.success('Post published!');
+        navigate(`/teacher-posts/${post.post_id}`);
+      }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to publish post');
+      toast.error(err.response?.data?.error || (isEditing ? 'Failed to update post' : 'Failed to publish post'));
     } finally {
       setSaving(false);
     }
   }
 
+  if (isEditing && loadingPost) {
+    return <div className="flex min-h-[60vh] items-center justify-center"><Spinner /></div>;
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="font-display text-3xl font-semibold text-forest-950">Publish a Tuition Post</h1>
-        <p className="mt-2 text-ink-600">Let students know you're available.</p>
+        <h1 className="font-display text-3xl font-semibold text-forest-950">
+          {isEditing ? 'Edit Tuition Post' : 'Publish a Tuition Post'}
+        </h1>
+        <p className="mt-2 text-ink-600">
+          {isEditing ? 'Update the details students see.' : "Let students know you're available."}
+        </p>
 
         <form onSubmit={handleSubmit} className="mt-8 grid gap-5 rounded-3xl border border-forest-100 bg-cream-50 p-7 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -122,7 +170,7 @@ export default function PostTeacherPost() {
 
           <button type="submit" disabled={saving}
             className="sm:col-span-2 mt-2 rounded-xl bg-forest-900 py-3 font-semibold text-cream-50 hover:bg-forest-800 disabled:opacity-60">
-            {saving ? 'Publishing…' : 'Publish post'}
+            {saving ? 'Saving…' : isEditing ? 'Save changes' : 'Publish post'}
           </button>
         </form>
       </motion.div>

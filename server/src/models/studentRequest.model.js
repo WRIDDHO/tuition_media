@@ -34,7 +34,7 @@ async function getAllStudentRequests() {
 
 async function getStudentRequestById(requestId) {
   const result = await pool.query(
-    `SELECT sr.*, s.subject_name, u.full_name AS student_name
+    `SELECT sr.*, s.subject_name, u.full_name AS student_name, u.user_id AS student_user_id
      FROM student_tuition_requests sr
      JOIN subjects s ON s.subject_id = sr.subject_id
      JOIN students st ON st.student_id = sr.student_id
@@ -86,6 +86,15 @@ async function deleteStudentRequest(requestId, studentId) {
   return result.rows[0];
 }
 
+// Admin moderation: delete regardless of owner.
+async function adminDeleteStudentRequest(requestId) {
+  const result = await pool.query(
+    `DELETE FROM student_tuition_requests WHERE request_id = $1 RETURNING *`,
+    [requestId]
+  );
+  return result.rows[0];
+}
+
 module.exports = {
   createStudentRequest,
   getAllStudentRequests,
@@ -93,4 +102,5 @@ module.exports = {
   getRequestsByStudent,
   updateStudentRequest,
   deleteStudentRequest,
+  adminDeleteStudentRequest,
 };

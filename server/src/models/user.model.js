@@ -1,11 +1,14 @@
 const pool = require('../config/db');
 
-async function createUser({ fullName, email, passwordHash, role }) {
+async function createUser({ fullName, email, passwordHash, role, accountStatus = 'active' }) {
+  // accountStatus defaults to 'active' for backward compatibility, but
+  // auth.controller.js always passes it explicitly now: 'active' for
+  // students, 'pending' for teachers (Phase 2 teacher verification).
   const result = await pool.query(
-    `INSERT INTO users (full_name, email, password_hash, role)
-     VALUES ($1, $2, $3, $4)
-     RETURNING user_id, full_name, email, role, created_at`,
-    [fullName, email, passwordHash, role]
+    `INSERT INTO users (full_name, email, password_hash, role, account_status)
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING user_id, full_name, email, role, account_status, created_at`,
+    [fullName, email, passwordHash, role, accountStatus]
   );
   return result.rows[0];
 }

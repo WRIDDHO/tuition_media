@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { Bell, FileText, ClipboardList, Star, Sparkles, ArrowRight, PlusCircle, UploadCloud } from 'lucide-react';
@@ -23,6 +23,9 @@ const FALLBACK_COLOR = '#93a39a';
 export default function Dashboard() {
   const { user } = useAuth();
   const isTeacher = user?.role === 'teacher';
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin" replace />;
+  }
 
   const { data: profile, isLoading: profileLoading, isError: noProfile } = useQuery({
     queryKey: ['my-profile', user?.role],

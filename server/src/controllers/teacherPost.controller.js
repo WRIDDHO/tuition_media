@@ -1,4 +1,3 @@
-// server/src/controllers/teacherPost.controller.js
 const {
   createTeacherPost,
   getAllTeacherPosts,
@@ -6,9 +5,12 @@ const {
   getPostsByTeacher,
   updateTeacherPost,
   deleteTeacherPost,
+  adminDeleteTeacherPost,
 } = require('../models/teacherPost.model');
 
 const { cleanBody } = require('../utils/sanitize');
+const { isValidId } = require('../utils/validate');
+const { logAdminAction } = require('../utils/auditLog');
 
 // Fields that must become NULL when the form sends an empty string.
 // 'deadline' is a DATE column and is the one that caused error 22007.
@@ -32,12 +34,6 @@ function logDbError(label, err) {
     detail: err.detail,
     column: err.column,
   });
-}
-
-// URL params are always strings; reject anything that is not a positive integer.
-function isValidId(value) {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0;
 }
 
 async function create(req, res) {
@@ -119,7 +115,18 @@ async function remove(req, res) {
       return res.status(400).json({ error: 'Invalid post id.' });
     }
 
-    const deleted = await deleteTeacherPost(req.params.id, req.teacherId);
+    // Admins moderate any post; owners can only delete their own (enforced
+    // in SQL via teacher_id, never trusted from the request body/params).
+    let deleted;
+    if (req.user.role === 'admin') {
+      deleted = await adminDeleteTeacherPost(req.params.id);
+      if (deleted) {
+        await logAdminAction(req.user.userId, 'post_removed', 'teacher_post', Number(req.params.id), { title: deleted.title });
+      }
+    } else {
+      deleted = await deleteTeacherPost(req.params.id, req.teacherId);
+    }
+
     if (!deleted) {
       return res.status(404).json({ error: 'Post not found or you do not own it.' });
     }

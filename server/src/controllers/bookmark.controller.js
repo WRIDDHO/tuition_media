@@ -1,4 +1,5 @@
 const { findBookmark, addBookmark, removeBookmark, getMyBookmarks } = require('../models/bookmark.model');
+const { sendDbError } = require('../utils/dbErrors');
 
 async function toggle(req, res) {
   try {
@@ -13,8 +14,14 @@ async function toggle(req, res) {
       return res.status(201).json({ message: 'Bookmark added', bookmarked: true });
     }
   } catch (err) {
-    console.error('ToggleBookmark error:', err.message);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    // resource_bookmarks has a composite PRIMARY KEY (student_id,
+    // resource_id) -- if two toggle requests race between the check above
+    // and the insert, the second one lands here instead of creating a
+    // duplicate row. Treat it the same as "already bookmarked".
+    if (err.code === '23505') {
+      return res.status(200).json({ message: 'Already bookmarked', bookmarked: true });
+    }
+    sendDbError(res, err, 'ToggleBookmark');
   }
 }
 
@@ -23,8 +30,7 @@ async function listMine(req, res) {
     const bookmarks = await getMyBookmarks(req.studentId);
     res.status(200).json({ bookmarks });
   } catch (err) {
-    console.error('ListBookmarks error:', err.message);
-    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+    sendDbError(res, err, 'ListBookmarks');
   }
 }
 
