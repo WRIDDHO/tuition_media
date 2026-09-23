@@ -14,6 +14,8 @@ const {
   activateAccount,
   deleteAccount,
   getAllMatches,
+    getAllReports, getReportStatsHandler, getReportDetail,
+  reviewReport, requestExplanation, resolveReportHandler,
 } = require('../controllers/admin.controller');
 
 // Applied once to every route below -- authorization is enforced here on
@@ -37,5 +39,10 @@ router.post('/users/:userId/suspend', suspendAccount);
 router.post('/users/:userId/activate', activateAccount);
 router.delete('/users/:userId', deleteAccount);
 router.get('/matches', verifyToken, requireRole('admin'), getAllMatches);
-
+router.get('/reports', verifyToken, requireRole('admin'), getAllReports);
+router.get('/reports/stats', verifyToken, requireRole('admin'), getReportStatsHandler);
+router.get('/reports/:id', verifyToken, requireRole('admin'), getReportDetail);
+router.put('/reports/:id/review', verifyToken, requireRole('admin'), reviewReport);
+router.put('/reports/:id/request-explanation', verifyToken, requireRole('admin'), requestExplanation);
+router.put('/reports/:id/resolve', verifyToken, requireRole('admin'), resolveReportHandler);
 module.exports = router;

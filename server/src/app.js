@@ -160,6 +160,12 @@ app.use('/api/notifications', notificationRoutes);
 
 const adminRoutes = require('./routes/admin.routes');
 app.use('/api/admin', adminRoutes);
+
+const matchRoutes = require('./routes/match.routes');
+app.use('/api/matches', matchRoutes);
+
+const reportRoutes = require('./routes/report.routes');
+app.use('/api/reports', reportRoutes);
 // admin.model.js (calls approve_teacher/reject_teacher/set_user_account_status/
 // delete_user_account/get_platform_stats)->admin.controller.js->admin.routes.js->app.js
 

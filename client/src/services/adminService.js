@@ -53,3 +53,32 @@ export async function getAllMatches({ page = 1, limit = 20 } = {}) {
   const res = await api.get('/admin/matches', { params: { page, limit } });
   return res.data;
 }
+export async function getReportStats() {
+  const res = await api.get('/admin/reports/stats');
+  return res.data;
+}
+
+export async function getAllReports({ status } = {}) {
+  const res = await api.get('/admin/reports', { params: status ? { status } : {} });
+  return res.data.reports;
+}
+
+export async function getReportDetail(id) {
+  const res = await api.get(`/admin/reports/${id}`);
+  return res.data; // { report, evidence }
+}
+
+export async function reviewReport(id) {
+  const res = await api.put(`/admin/reports/${id}/review`);
+  return res.data;
+}
+
+export async function requestExplanation(id, deadlineHours) {
+  const res = await api.put(`/admin/reports/${id}/request-explanation`, { deadlineHours });
+  return res.data;
+}
+
+export async function resolveReport(id, { action, note, suspensionDays }) {
+  const res = await api.put(`/admin/reports/${id}/resolve`, { action, note, suspensionDays });
+  return res.data;
+}

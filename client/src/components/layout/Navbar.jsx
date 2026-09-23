@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Bell, User, ChevronDown, LayoutDashboard, FileEdit, ClipboardList, Bookmark, LogOut, PlusCircle, Settings, ShieldCheck } from 'lucide-react';
+import { Menu, X, Bell, User, ChevronDown, LayoutDashboard, FileEdit, ClipboardList, Bookmark, LogOut, PlusCircle, Settings, ShieldCheck, Users2, Flag} from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const navLinks = [
@@ -57,10 +57,14 @@ function AccountMenu({ user, logout }) {
       ? [
           { icon: PlusCircle, label: 'Upload a resource', to: '/resources/new' },
           { icon: ClipboardList, label: 'My applications', to: '/my-applications' },
+          { icon: Users2, label: 'My matches', to: '/matches' },
+          { icon: Flag, label: 'My reports', to: '/reports' },
         ]
       : [
           { icon: ClipboardList, label: 'My applications', to: '/my-applications' },
           { icon: Bookmark, label: 'My bookmarks', to: '/bookmarks' },
+          { icon: Users2, label: 'My matches', to: '/matches' },
+          { icon: Flag, label: 'My reports', to: '/reports' },
         ]),
   ];
 

@@ -47,4 +47,14 @@ async function updateProfilePicture(userId, profilePictureUrl) {
   );
   return result.rows[0];
 }
-module.exports = { createUser, findUserByEmail, findUserById, updateUser, updateProfilePicture };
+// Lazily reactivates a temporarily-suspended account if its
+// suspended_until has passed. Called at the top of login(), before the
+// account_status check -- no scheduler needed, this runs on demand.
+async function reactivateIfSuspensionExpired(userId) {
+  const result = await pool.query(
+    `CALL reactivate_if_suspension_expired($1, NULL)`,
+    [userId]
+  );
+  return result.rows[0]?.out_reactivated === true;
+}
+module.exports = { createUser, findUserByEmail, findUserById, updateUser, updateProfilePicture,reactivateIfSuspensionExpired };

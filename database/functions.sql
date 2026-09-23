@@ -1,8 +1,3 @@
--- Run order: schema.sql -> database/migrations/*.sql -> this file -> views.sql
--- (approve_teacher/reject_teacher/set_user_account_status below insert into
--- audit_logs, added in migrations/005; they and the account-status trigger
--- also rely on the 'pending'/'rejected' values added in migrations/001.)
-
 DROP FUNCTION IF EXISTS search_teachers(TEXT, TEXT, TEXT, INTEGER, INTEGER, INTEGER);
 CREATE OR REPLACE FUNCTION search_teachers(
     p_subject_name TEXT DEFAULT NULL,
@@ -48,10 +43,6 @@ BEGIN
     INNER JOIN users u ON u.user_id = t.user_id
     WHERE
         u.account_status = 'active'
-        -- FIXED (Phase 2): a pending/rejected/suspended teacher must not be
-        -- publicly searchable as if they were a verified tutor. This was
-        -- previously missing entirely -- every teacher showed up in search
-        -- results regardless of verification status.
         AND (p_subject_name IS NULL OR EXISTS (
             SELECT 1 FROM teacher_subjects ts2
             JOIN subjects s2 ON s2.subject_id = ts2.subject_id
@@ -66,6 +57,8 @@ BEGIN
     LIMIT p_limit;
 END;
 $$ LANGUAGE plpgsql;
+
+
 DROP PROCEDURE IF EXISTS accept_post_application;
 CREATE OR REPLACE PROCEDURE accept_post_application(
     IN p_application_id INTEGER,

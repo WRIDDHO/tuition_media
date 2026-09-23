@@ -1,13 +1,9 @@
 const pool = require('../config/db');
 
-// ---- Platform statistics ----------------------------------------------
-
 async function getPlatformStats() {
   const result = await pool.query(`SELECT * FROM get_platform_stats()`);
   return result.rows[0];
 }
-
-// ---- Teacher verification ----------------------------------------------
 
 async function listPendingTeachers() {
   const result = await pool.query(`SELECT * FROM pending_teacher_verifications`);
@@ -131,6 +127,94 @@ async function listAllMatches(limit, offset) {
   );
   return result.rows;
 }
+// ---------------------------------------------------------------------
+// Reports / moderation
+// ---------------------------------------------------------------------
+
+const REPORT_ADMIN_SELECT_SQL = `
+  SELECT
+      r.report_id, r.match_id, r.reason, r.description, r.status,
+      r.explanation, r.explanation_requested_at, r.explanation_deadline,
+      r.explanation_submitted_at, r.resolution_action, r.resolution_note,
+      r.resolved_at, r.created_at,
+      reporter.full_name AS reporter_name, reporter.user_id AS reporter_user_id,
+      reported.full_name AS reported_name, reported.user_id AS reported_user_id,
+      m.status AS match_status
+  FROM reports r
+  JOIN users reporter ON reporter.user_id = r.reporter_user_id
+  JOIN users reported ON reported.user_id = r.reported_user_id
+  JOIN matches m ON m.match_id = r.match_id
+`;
+
+// status = null lists every report; otherwise filters to one status
+// (or an array of statuses, e.g. the "waiting" bucket = pending + under_review).
+async function listReportsByStatus(statusFilter, limit, offset) {
+  const statuses = statusFilter
+    ? (Array.isArray(statusFilter) ? statusFilter : [statusFilter])
+    : null;
+
+  const result = await pool.query(
+    `${REPORT_ADMIN_SELECT_SQL}
+     WHERE ($1::VARCHAR[] IS NULL OR r.status = ANY($1))
+     ORDER BY r.created_at DESC
+     LIMIT $2 OFFSET $3`,
+    [statuses, limit, offset]
+  );
+  return result.rows;
+}
+
+async function getReportDetailForAdmin(reportId) {
+  const result = await pool.query(
+    `${REPORT_ADMIN_SELECT_SQL} WHERE r.report_id = $1`,
+    [reportId]
+  );
+  return result.rows[0];
+}
+
+// Counts for the admin dashboard's Reports tab -- one query, all six
+// buckets, straight from the real table (never hardcoded).
+async function getReportStats() {
+  const result = await pool.query(
+    `SELECT
+        COUNT(*) FILTER (WHERE status = 'pending')                AS pending,
+        COUNT(*) FILTER (WHERE status = 'under_review')           AS under_review,
+        COUNT(*) FILTER (WHERE status = 'explanation_requested')  AS waiting_for_explanation,
+        COUNT(*) FILTER (WHERE status = 'explanation_received')   AS explanation_received,
+        COUNT(*) FILTER (WHERE status = 'resolved')                AS resolved,
+        COUNT(*) FILTER (WHERE status = 'dismissed')                AS dismissed
+     FROM reports`
+  );
+  return result.rows[0];
+}
+
+// Admin opens a pending report and starts investigating -- a cheap
+// status bump with no other side effects, so it doesn't need a
+// procedure of its own.
+async function markUnderReview(reportId) {
+  const result = await pool.query(
+    `UPDATE reports SET status = 'under_review'
+     WHERE report_id = $1 AND status = 'pending'
+     RETURNING *`,
+    [reportId]
+  );
+  return result.rows[0];
+}
+
+async function requestExplanationForReport(adminId, reportId, deadlineHours) {
+  const result = await pool.query(
+    `CALL request_report_explanation($1, $2, $3, NULL, NULL)`,
+    [adminId, reportId, deadlineHours]
+  );
+  return result.rows[0];
+}
+
+async function resolveReportAsAdmin(adminId, reportId, action, note, suspensionDays) {
+  const result = await pool.query(
+    `CALL resolve_report($1, $2, $3, $4, $5, NULL, NULL)`,
+    [adminId, reportId, action, note, suspensionDays || null]
+  );
+  return result.rows[0];
+}
 module.exports = {
   getPlatformStats,
   listPendingTeachers,
@@ -142,4 +226,10 @@ module.exports = {
   setAccountStatus,
   deleteUserAccount,
   listAllMatches,
+  listReportsByStatus,
+  getReportDetailForAdmin,
+  getReportStats,
+  markUnderReview,
+  requestExplanationForReport,
+  resolveReportAsAdmin,
 };

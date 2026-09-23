@@ -1,7 +1,6 @@
-
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { createUser, findUserByEmail } = require('../models/user.model');
+const { createUser, findUserByEmail,reactivateIfSuspensionExpired  } = require('../models/user.model');
 
 // Public registration may only ever create these two roles. 'admin' is
 // intentionally excluded -- admin accounts are created directly in the
@@ -63,7 +62,13 @@ async function login(req, res) {
     if (!isMatch) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
-
+   if (user.account_status === 'suspended') {
+      const reactivated = await reactivateIfSuspensionExpired(user.user_id);
+      if (reactivated) {
+        user.account_status = 'active';
+        user.suspended_until = null;
+      }
+    }
     // Checked only after the password matches, so a wrong password always
     // looks identical whether the account is pending/rejected/suspended or
     // just doesn't exist -- login must not double as a way to probe an

@@ -36,7 +36,10 @@ import WriteReview from '@/pages/WriteReview';
 import AdminDashboard from '@/pages/AdminDashboard';
 
 import ProtectedRoute from '@/components/shared/ProtectedRoute';
-
+import MyMatches from '@/pages/MyMatches';
+import MatchDetail from '@/pages/MatchDetail';
+import MyReports from '@/pages/MyReports';
+import ReportDetail from '@/pages/ReportDetail';
 export default function App() {
   return (
     <>
@@ -130,6 +133,22 @@ export default function App() {
             element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>}
           />
           <Route path="*" element={<NotFound />} />
+                    <Route
+            path="/matches"
+            element={<ProtectedRoute><MyMatches /></ProtectedRoute>}
+          />
+          <Route
+            path="/matches/:id"
+            element={<ProtectedRoute><MatchDetail /></ProtectedRoute>}
+          />
+          <Route
+            path="/reports"
+            element={<ProtectedRoute><MyReports /></ProtectedRoute>}
+          />
+          <Route
+            path="/reports/:id"
+            element={<ProtectedRoute><ReportDetail /></ProtectedRoute>}
+          />
         </Route>
       </Routes>
     </>
