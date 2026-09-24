@@ -1,9 +1,6 @@
 const { findTeacherByUserId } = require('../models/teacher.model');
 
 async function resolveTeacherId(req, res, next) {
-  // Phase 3: same admin bypass as resolveStudentId.middleware.js -- an
-  // admin moderating a teacher's content has no teacher profile of their
-  // own. Only reachable when a route explicitly allows 'admin'.
   if (req.user.role === 'admin') {
     req.teacherId = null;
     return next();

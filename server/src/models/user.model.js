@@ -1,9 +1,6 @@
 const pool = require('../config/db');
 
 async function createUser({ fullName, email, passwordHash, role, accountStatus = 'active' }) {
-  // accountStatus defaults to 'active' for backward compatibility, but
-  // auth.controller.js always passes it explicitly now: 'active' for
-  // students, 'pending' for teachers (Phase 2 teacher verification).
   const result = await pool.query(
     `INSERT INTO users (full_name, email, password_hash, role, account_status)
      VALUES ($1, $2, $3, $4, $5)
@@ -47,9 +44,6 @@ async function updateProfilePicture(userId, profilePictureUrl) {
   );
   return result.rows[0];
 }
-// Lazily reactivates a temporarily-suspended account if its
-// suspended_until has passed. Called at the top of login(), before the
-// account_status check -- no scheduler needed, this runs on demand.
 async function reactivateIfSuspensionExpired(userId) {
   const result = await pool.query(
     `CALL reactivate_if_suspension_expired($1, NULL)`,
