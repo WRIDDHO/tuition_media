@@ -6,6 +6,7 @@ const {
   updateTeacherPost,
   deleteTeacherPost,
   adminDeleteTeacherPost,
+  searchTeacherPosts,
 } = require('../models/teacherPost.model');
 
 const { cleanBody } = require('../utils/sanitize');
@@ -61,7 +62,18 @@ async function listAll(req, res) {
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }
 }
-
+async function search(req, res) {
+  try {
+    const { subjectId, location, mode, classLevel, minSalary, maxSalary, daysPerWeek, preferredGender, limit } = req.query;
+    const results = await searchTeacherPosts({
+      subjectId, location, mode, classLevel, minSalary, maxSalary, daysPerWeek, preferredGender, limit,
+    });
+    res.status(200).json({ count: results.length, results });
+  } catch (err) {
+    logDbError('Search error', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+}
 async function getOne(req, res) {
   try {
     if (!isValidId(req.params.id)) {
@@ -137,4 +149,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { create, listAll, getOne, listMine, update, remove };
+module.exports = { create, listAll, getOne, listMine, update, remove,search };

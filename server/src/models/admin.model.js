@@ -215,6 +215,37 @@ async function resolveReportAsAdmin(adminId, reportId, action, note, suspensionD
   );
   return result.rows[0];
 }
+// Warning history for a user -- admin.controller.js exposes this so an
+// admin reviewing a report can see the reported user's prior warnings
+// before deciding on an action.
+async function getWarningsForUser(userId) {
+  const result = await pool.query(
+    `SELECT w.warning_id, w.report_id, w.reason, w.created_at,
+            issuer.full_name AS issued_by_name
+     FROM warnings w
+     LEFT JOIN users issuer ON issuer.user_id = w.issued_by
+     WHERE w.user_id = $1
+     ORDER BY w.created_at DESC`,
+    [userId]
+  );
+  return result.rows;
+}
+
+// The step-by-step history for one report, straight from audit_logs --
+// every procedure in 007_moderation_system.sql already writes here, so
+// this is purely a read, no new write path needed.
+async function getAuditLogForReport(reportId) {
+  const result = await pool.query(
+    `SELECT a.log_id, a.action, a.details, a.created_at,
+            admin.full_name AS admin_name
+     FROM audit_logs a
+     LEFT JOIN users admin ON admin.user_id = a.admin_id
+     WHERE a.target_type = 'report' AND a.target_id = $1
+     ORDER BY a.created_at ASC`,
+    [reportId]
+  );
+  return result.rows;
+}
 module.exports = {
   getPlatformStats,
   listPendingTeachers,
@@ -232,4 +263,6 @@ module.exports = {
   markUnderReview,
   requestExplanationForReport,
   resolveReportAsAdmin,
+  getWarningsForUser,
+  getAuditLogForReport,
 };

@@ -5,12 +5,12 @@ const verifyToken = require('../middleware/auth.middleware');
 const requireRole = require('../middleware/role.middleware');
 const resolveStudentId = require('../middleware/resolveStudentId.middleware');
 const {
-  create, listAll, getOne, listMine, update, remove,
+  create, listAll, getOne, listMine, update, remove,search,
 } = require('../controllers/studentRequest.controller');
 
 // Public
 router.get('/', listAll);
-
+router.get('/search', search); 
 // Logged-in teacher only (specific routes BEFORE /:id)
 router.post('/', verifyToken, requireRole('student'), resolveStudentId, create);
 router.get('/mine', verifyToken, requireRole('student'),resolveStudentId, listMine);

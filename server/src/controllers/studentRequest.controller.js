@@ -6,6 +6,7 @@ const {
   updateStudentRequest,
   deleteStudentRequest,
   adminDeleteStudentRequest,
+  searchStudentRequests
 } = require('../models/studentRequest.model');
 
 const { cleanBody } = require('../utils/sanitize');
@@ -116,5 +117,16 @@ async function remove(req, res) {
     sendDbError(res, err, 'DeletePost');
   }
 }
-
-module.exports = { create, listAll, getOne, listMine, update, remove };
+async function search(req, res) {
+  try {
+    const { subjectId, location, mode, categoryName, classLevel, minSalary, maxSalary, daysPerWeek, preferredInstitution, limit } = req.query;
+    const results = await searchStudentRequests({
+      subjectId, location, mode, categoryName, classLevel, minSalary, maxSalary, daysPerWeek, preferredInstitution, limit,
+    });
+    res.status(200).json({ count: results.length, results });
+  } catch (err) {
+    logDbError('Search error', err);
+    res.status(500).json({ error: 'Something went wrong. Please try again.' });
+  }
+}
+module.exports = { create, listAll, getOne, listMine, update, remove,search };

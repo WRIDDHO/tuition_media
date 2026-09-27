@@ -32,6 +32,38 @@ async function getAllStudentRequests() {
   return result.rows;
 }
 
+async function searchStudentRequests(filters) {
+  const {
+    subjectId, location, mode, categoryName, classLevel,
+    minSalary, maxSalary, daysPerWeek, preferredInstitution, limit,
+  } = filters;
+
+  const result = await pool.query(
+    `SELECT sr.*, s.subject_name, u.full_name AS student_name
+     FROM student_tuition_requests sr
+     JOIN subjects s ON s.subject_id = sr.subject_id
+     JOIN students st ON st.student_id = sr.student_id
+     JOIN users u ON u.user_id = st.user_id
+     WHERE sr.status = 'active'
+       AND ($1::INTEGER IS NULL OR sr.subject_id = $1)
+       AND ($2::TEXT IS NULL OR sr.location ILIKE '%' || $2 || '%')
+       AND ($3::TEXT IS NULL OR sr.mode = $3::mode_type)
+       AND ($4::TEXT IS NULL OR sr.category_name = $4)
+       AND ($5::TEXT IS NULL OR sr.class_level = $5)
+       AND ($6::INTEGER IS NULL OR sr.salary >= $6)
+       AND ($7::INTEGER IS NULL OR sr.salary <= $7)
+       AND ($8::INTEGER IS NULL OR sr.days_per_week = $8)
+       AND ($9::TEXT IS NULL OR sr.preferred_institution ILIKE '%' || $9 || '%')
+     ORDER BY sr.posted_at DESC
+     LIMIT $10`,
+    [
+      subjectId || null, location || null, mode || null, categoryName || null,
+      classLevel || null, minSalary || null, maxSalary || null,
+      daysPerWeek || null, preferredInstitution || null, limit || 20,
+    ]
+  );
+  return result.rows;
+}
 async function getStudentRequestById(requestId) {
   const result = await pool.query(
     `SELECT sr.*, s.subject_name, u.full_name AS student_name, u.user_id AS student_user_id
@@ -103,4 +135,5 @@ module.exports = {
   updateStudentRequest,
   deleteStudentRequest,
   adminDeleteStudentRequest,
+  searchStudentRequests,
 };

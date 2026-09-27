@@ -82,3 +82,13 @@ export async function resolveReport(id, { action, note, suspensionDays }) {
   const res = await api.put(`/admin/reports/${id}/resolve`, { action, note, suspensionDays });
   return res.data;
 }
+
+export async function getUserWarnings(userId) {
+  const res = await api.get(`/admin/users/${userId}/warnings`);
+  return res.data.warnings;
+}
+
+export async function getReportTimeline(reportId) {
+  const res = await api.get(`/admin/reports/${reportId}/timeline`);
+  return res.data.timeline;
+}

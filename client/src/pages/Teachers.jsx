@@ -10,6 +10,9 @@ import { SubjectPill, RatingStars, EmptyState, CardSkeletonGrid } from '@/compon
 export default function Teachers() {
   const [subject, setSubject] = useState('');
   const [district, setDistrict] = useState('');
+  const [gender, setGender] = useState('');
+  const [minRate, setMinRate] = useState('');
+  const [maxRate, setMaxRate] = useState('');
 
   const { data: subjects } = useQuery({
     queryKey: ['subjects'],
@@ -17,8 +20,14 @@ export default function Teachers() {
   });
 
   const { data: teachers, isLoading } = useQuery({
-    queryKey: ['teachers-search', subject, district],
-    queryFn: () => searchTeachers({ subject: subject || undefined, district: district || undefined }),
+    queryKey: ['teachers-search', subject, district, gender, minRate, maxRate],
+    queryFn: () => searchTeachers({
+      subject: subject || undefined,
+      district: district || undefined,
+      gender: gender || undefined,
+      minRate: minRate || undefined,
+      maxRate: maxRate || undefined,
+    }),
   });
 
   return (
@@ -52,7 +61,39 @@ export default function Teachers() {
             className="w-full bg-transparent text-sm outline-none placeholder:text-ink-400"
           />
         </div>
+        <div className="flex min-w-[140px] items-center gap-2 rounded-xl border border-forest-100 bg-white px-3 py-2">
+          <select
+            value={gender}
+            onChange={(e) => setGender(e.target.value)}
+            className="w-full bg-transparent text-sm outline-none"
+          >
+            <option value="">Any gender</option>
+            <option value="male">Male</option>
+            <option value="female">Female</option>
+          </select>
+        </div>
+        <div className="flex min-w-[120px] items-center gap-2 rounded-xl border border-forest-100 bg-white px-3 py-2">
+          <input
+            type="number"
+            value={minRate}
+            onChange={(e) => setMinRate(e.target.value)}
+            placeholder="Min ৳/hr"
+            className="w-full bg-transparent text-sm outline-none placeholder:text-ink-400"
+          />
+        </div>
+        <div className="flex min-w-[120px] items-center gap-2 rounded-xl border border-forest-100 bg-white px-3 py-2">
+          <input
+            type="number"
+            value={maxRate}
+            onChange={(e) => setMaxRate(e.target.value)}
+            placeholder="Max ৳/hr"
+            className="w-full bg-transparent text-sm outline-none placeholder:text-ink-400"
+          />
+        </div>
       </div>
+      {!isLoading && (
+        <p className="-mt-4 mb-6 text-sm text-ink-500">{teachers?.length ?? 0} tutors found</p>
+      )}
 
       {isLoading ? (
         <CardSkeletonGrid count={6} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3" />

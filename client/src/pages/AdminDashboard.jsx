@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
 import {
   Users, GraduationCap, Clock, ShieldAlert, FileText, ClipboardList,
-  HelpCircle, BookOpen, CheckCircle2, XCircle, Ban, RotateCcw, Trash2, X, ArrowLeft,AlertTriangle, MessageSquareWarning,
+  HelpCircle, BookOpen, CheckCircle2, XCircle, Ban, RotateCcw, Trash2, X, ArrowLeft,
+  AlertTriangle, MessageSquareWarning, History, AlertOctagon,
 } from 'lucide-react';
 import {
   getPlatformStats,
@@ -23,6 +24,8 @@ import {
   reviewReport,
   requestExplanation,
   resolveReport,
+  getUserWarnings,
+   getReportTimeline,
 } from '@/services/adminService';
 import { getAllTeacherPosts, getAllStudentRequests, deleteTeacherPost, deleteStudentRequest } from '@/services/postService';
 import { getAllQuestions, deleteQuestion, getAllResources, deleteResource } from '@/services/activityService';
@@ -895,6 +898,7 @@ function ReportsTab() {
 function ReportDetailModal({ reportId, onClose, onChanged }) {
   const [showExplainModal, setShowExplainModal] = useState(false);
   const [showResolveModal, setShowResolveModal] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-report-detail', reportId],
@@ -902,6 +906,17 @@ function ReportDetailModal({ reportId, onClose, onChanged }) {
     enabled: reportId !== null,
   });
 
+  const { data: warnings } = useQuery({
+    queryKey: ['admin-user-warnings', data?.report?.reported_user_id],
+    queryFn: () => getUserWarnings(data.report.reported_user_id),
+    enabled: !!data?.report?.reported_user_id,
+  });
+
+  const { data: timeline } = useQuery({
+    queryKey: ['admin-report-timeline', reportId],
+    queryFn: () => getReportTimeline(reportId),
+    enabled: showTimeline,
+  });
   const reviewMutation = useMutation({
     mutationFn: () => reviewReport(reportId),
     onSuccess: () => { toast.success('Marked as under review'); onChanged(); },
@@ -987,7 +1002,52 @@ function ReportDetailModal({ reportId, onClose, onChanged }) {
                   <p className="mt-1.5 text-xs text-ink-400">Not requested yet.</p>
                 )}
               </div>
+                            {warnings?.length > 0 && (
+                <div className="mt-4 rounded-xl bg-amber-50 p-3">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    <AlertOctagon size={13} /> Prior warnings for {report.reported_name} ({warnings.length})
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    {warnings.map((w) => (
+                      <div key={w.warning_id} className="rounded-lg bg-white/70 p-2 text-xs text-ink-700">
+                        <p>{w.reason}</p>
+                        <p className="mt-0.5 text-ink-400">
+                          {new Date(w.created_at).toLocaleDateString()} · by {w.issued_by_name || 'an admin'}
+                          {w.report_id ? ` · from report #${w.report_id}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowTimeline((v) => !v)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-forest-700 hover:text-forest-900"
+                >
+                  <History size={13} /> {showTimeline ? 'Hide' : 'Show'} case timeline
+                </button>
+                {showTimeline && (
+                  <div className="mt-2 space-y-1.5 rounded-xl bg-white p-3">
+                    {!timeline?.length ? (
+                      <p className="text-xs text-ink-400">No admin actions recorded yet.</p>
+                    ) : (
+                      timeline.map((t) => (
+                        <div key={t.log_id} className="flex items-start justify-between gap-2 text-xs">
+                          <span className="text-ink-700">
+                            {t.action.replace(/_/g, ' ')}
+                            {t.admin_name ? ` · by ${t.admin_name}` : ''}
+                          </span>
+                          <span className="whitespace-nowrap text-ink-400">
+                            {new Date(t.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
               {(report.status === 'resolved' || report.status === 'dismissed') && (
                 <div className="mt-4 rounded-xl bg-forest-50 p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-forest-700">Admin decision</p>

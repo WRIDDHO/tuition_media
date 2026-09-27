@@ -1,12 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { createUser, findUserByEmail,reactivateIfSuspensionExpired  } = require('../models/user.model');
-
-// Public registration may only ever create these two roles. 'admin' is
-// intentionally excluded -- admin accounts are created directly in the
-// database (see database/sample_data.sql), never through this endpoint.
-// FIXED (Phase 2): previously `role` was taken from the request body with
-// no restriction at all, so anyone could register as 'admin'.
 const PUBLIC_REGISTRATION_ROLES = ['student', 'teacher'];
 
 async function register(req, res) {
@@ -25,10 +19,6 @@ async function register(req, res) {
     if (existingUser) {
       return res.status(409).json({ error: 'This email is already registered.' });
     }
-
-    // Students can use the platform immediately. Teachers start pending
-    // and only become able to log in once an admin approves them (see
-    // database/functions.sql: approve_teacher / reject_teacher).
     const accountStatus = role === 'teacher' ? 'pending' : 'active';
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -69,12 +59,6 @@ async function login(req, res) {
         user.suspended_until = null;
       }
     }
-    // Checked only after the password matches, so a wrong password always
-    // looks identical whether the account is pending/rejected/suspended or
-    // just doesn't exist -- login must not double as a way to probe an
-    // account's status. Messages here stay generic on purpose (no admin
-    // notes, no rejection/suspension reason) per "don't expose unnecessary
-    // information about rejected/suspended accounts."
     if (user.account_status !== 'active') {
       const statusMessages = {
         pending: 'Your teacher account is still awaiting admin approval.',

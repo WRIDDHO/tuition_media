@@ -4,10 +4,11 @@ const verifyToken = require('../middleware/auth.middleware');
 const requireRole = require('../middleware/role.middleware');
 const resolveTeacherId = require('../middleware/resolveTeacherId.middleware');
 const {
-  create, listAll, getOne, listMine, update, remove,
+  create, listAll, getOne, listMine, update, remove,search,
 } = require('../controllers/teacherPost.controller');
 
 router.get('/', listAll);
+router.get('/search', search);
 router.post('/', verifyToken, requireRole('teacher'), resolveTeacherId, create);
 router.get('/mine', verifyToken, requireRole('teacher'), resolveTeacherId, listMine);
 router.put('/:id', verifyToken, requireRole('teacher'), resolveTeacherId, update);

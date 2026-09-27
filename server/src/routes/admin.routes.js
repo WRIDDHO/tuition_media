@@ -16,6 +16,7 @@ const {
   getAllMatches,
     getAllReports, getReportStatsHandler, getReportDetail,
   reviewReport, requestExplanation, resolveReportHandler,
+    getUserWarnings, getReportTimeline,
 } = require('../controllers/admin.controller');
 
 // Applied once to every route below -- authorization is enforced here on
@@ -45,4 +46,6 @@ router.get('/reports/:id', verifyToken, requireRole('admin'), getReportDetail);
 router.put('/reports/:id/review', verifyToken, requireRole('admin'), reviewReport);
 router.put('/reports/:id/request-explanation', verifyToken, requireRole('admin'), requestExplanation);
 router.put('/reports/:id/resolve', verifyToken, requireRole('admin'), resolveReportHandler);
+router.get('/users/:userId/warnings', verifyToken, requireRole('admin'), getUserWarnings);
+router.get('/reports/:id/timeline', verifyToken, requireRole('admin'), getReportTimeline);
 module.exports = router;

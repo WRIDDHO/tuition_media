@@ -11,6 +11,7 @@ const {
   listAllMatches,
   listReportsByStatus, getReportDetailForAdmin, getReportStats,
   markUnderReview, requestExplanationForReport, resolveReportAsAdmin,
+    getWarningsForUser, getAuditLogForReport,
 } = require('../models/admin.model');
 const { getEvidenceForReport } = require('../models/report.model');
 // Shared pagination parsing: page starts at 1, limit is capped so nobody
@@ -301,6 +302,23 @@ async function resolveReportHandler(req, res) {
     sendDbError(res, err, 'ResolveReport');
   }
 }
+async function getUserWarnings(req, res) {
+  try {
+    const warnings = await getWarningsForUser(req.params.userId);
+    res.status(200).json({ warnings });
+  } catch (err) {
+    sendDbError(res, err, 'GetUserWarnings');
+  }
+}
+
+async function getReportTimeline(req, res) {
+  try {
+    const timeline = await getAuditLogForReport(req.params.id);
+    res.status(200).json({ timeline });
+  } catch (err) {
+    sendDbError(res, err, 'GetReportTimeline');
+  }
+}
 module.exports = {
   getStats,
   getPendingTeachers,
@@ -319,4 +337,6 @@ module.exports = {
   reviewReport, 
   requestExplanation, 
   resolveReportHandler,
+    getUserWarnings,
+  getReportTimeline,
 };

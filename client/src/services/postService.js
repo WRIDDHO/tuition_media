@@ -5,7 +5,10 @@ export async function getAllTeacherPosts() {
   const res = await api.get('/teacher-posts');
   return res.data.posts;
 }
-
+export async function searchTeacherPosts(filters = {}) {
+  const res = await api.get('/teacher-posts/search', { params: { limit: 50, ...filters } });
+  return res.data.results;
+}
 export async function getTeacherPostById(id) {
   const res = await api.get(`/teacher-posts/${id}`);
   return res.data.post;
@@ -36,7 +39,10 @@ export async function getAllStudentRequests() {
   const res = await api.get('/student-requests');
   return res.data.posts; // backend uses the "posts" key here too, see API reference
 }
-
+export async function searchStudentRequests(filters = {}) {
+  const res = await api.get('/student-requests/search', { params: { limit: 50, ...filters } });
+  return res.data.results;
+}
 export async function getStudentRequestById(id) {
   const res = await api.get(`/student-requests/${id}`);
   return res.data.post;
