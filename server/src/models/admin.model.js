@@ -246,6 +246,111 @@ async function getAuditLogForReport(reportId) {
   );
   return result.rows;
 }
+
+// Teachers with at least one active match, deduplicated, with their
+// active-student count and a "main subject" (the subject if all their
+// active matches share one, otherwise a plain label -- avoids inventing
+// a fake single subject when a teacher teaches several).
+async function getMatchedTeachersOverview() {
+  const result = await pool.query(
+    `SELECT tu.user_id AS teacher_user_id, tu.full_name AS teacher_name,
+            COUNT(*) AS active_student_count,
+            CASE WHEN COUNT(DISTINCT sub.subject_name) = 1 THEN MIN(sub.subject_name) ELSE 'Multiple subjects' END AS main_subject
+     FROM matches m
+     JOIN teachers t ON t.teacher_id = m.teacher_id
+     JOIN users tu ON tu.user_id = t.user_id
+     LEFT JOIN teacher_tuition_posts tp ON tp.post_id = m.teacher_post_id
+     LEFT JOIN student_tuition_requests sr ON sr.request_id = m.student_request_id
+     LEFT JOIN subjects sub ON sub.subject_id = COALESCE(tp.subject_id, sr.subject_id)
+     WHERE m.status = 'active'
+     GROUP BY tu.user_id, tu.full_name
+     ORDER BY tu.full_name`
+  );
+  return result.rows;
+}
+
+async function getStudentsMatchedOverview() {
+  const result = await pool.query(
+    `SELECT su.user_id AS student_user_id, su.full_name AS student_name,
+            COUNT(*) AS active_teacher_count
+     FROM matches m
+     JOIN students s ON s.student_id = m.student_id
+     JOIN users su ON su.user_id = s.user_id
+     WHERE m.status = 'active'
+     GROUP BY su.user_id, su.full_name
+     ORDER BY su.full_name`
+  );
+  return result.rows;
+}
+
+// Full drill-down for one teacher: their profile, plus every currently
+// matched student's full profile and the match-specific info.
+async function getTeacherMatchDetail(teacherUserId) {
+  const profileResult = await pool.query(
+    `SELECT u.user_id, u.full_name, u.email,
+            t.qualification, t.institution, t.current_level, t.major,
+            t.experience_years, t.gender, t.hourly_rate, t.district, t.area, t.phone
+     FROM teachers t
+     JOIN users u ON u.user_id = t.user_id
+     WHERE u.user_id = $1`,
+    [teacherUserId]
+  );
+  if (!profileResult.rows[0]) return null;
+
+  const studentsResult = await pool.query(
+    `SELECT m.match_id, m.status, m.started_at,
+            su.user_id AS student_user_id, su.full_name AS student_name, su.email AS student_email,
+            s.education_level, s.institution, s.medium, s.bio, s.phone, s.district, s.area,
+            sub.subject_name
+     FROM matches m
+     JOIN teachers t ON t.teacher_id = m.teacher_id
+     JOIN students s ON s.student_id = m.student_id
+     JOIN users su ON su.user_id = s.user_id
+     LEFT JOIN teacher_tuition_posts tp ON tp.post_id = m.teacher_post_id
+     LEFT JOIN student_tuition_requests sr ON sr.request_id = m.student_request_id
+     LEFT JOIN subjects sub ON sub.subject_id = COALESCE(tp.subject_id, sr.subject_id)
+     WHERE t.teacher_id = (SELECT teacher_id FROM teachers WHERE user_id = $1)
+       AND m.status = 'active'
+     ORDER BY m.started_at DESC`,
+    [teacherUserId]
+  );
+
+  return { profile: profileResult.rows[0], students: studentsResult.rows };
+}
+
+// Symmetric drill-down for one student.
+async function getStudentMatchDetail(studentUserId) {
+  const profileResult = await pool.query(
+    `SELECT u.user_id, u.full_name, u.email,
+            s.education_level, s.institution, s.medium, s.bio, s.phone, s.district, s.area
+     FROM students s
+     JOIN users u ON u.user_id = s.user_id
+     WHERE u.user_id = $1`,
+    [studentUserId]
+  );
+  if (!profileResult.rows[0]) return null;
+
+  const teachersResult = await pool.query(
+    `SELECT m.match_id, m.status, m.started_at,
+            tu.user_id AS teacher_user_id, tu.full_name AS teacher_name, tu.email AS teacher_email,
+            t.qualification, t.institution, t.current_level, t.major,
+            t.experience_years, t.hourly_rate, t.district, t.area, t.phone,
+            sub.subject_name
+     FROM matches m
+     JOIN students s ON s.student_id = m.student_id
+     JOIN teachers t ON t.teacher_id = m.teacher_id
+     JOIN users tu ON tu.user_id = t.user_id
+     LEFT JOIN teacher_tuition_posts tp ON tp.post_id = m.teacher_post_id
+     LEFT JOIN student_tuition_requests sr ON sr.request_id = m.student_request_id
+     LEFT JOIN subjects sub ON sub.subject_id = COALESCE(tp.subject_id, sr.subject_id)
+     WHERE s.student_id = (SELECT student_id FROM students WHERE user_id = $1)
+       AND m.status = 'active'
+     ORDER BY m.started_at DESC`,
+    [studentUserId]
+  );
+
+  return { profile: profileResult.rows[0], teachers: teachersResult.rows };
+}
 module.exports = {
   getPlatformStats,
   listPendingTeachers,
@@ -265,4 +370,8 @@ module.exports = {
   resolveReportAsAdmin,
   getWarningsForUser,
   getAuditLogForReport,
+  getMatchedTeachersOverview,
+  getStudentsMatchedOverview,
+  getTeacherMatchDetail,
+  getStudentMatchDetail,
 };

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
-import { Wallet, MapPin, Calendar, Clock, X, Flag, Ban, Upload } from 'lucide-react';
+import { Wallet, MapPin, Calendar, Clock, X, Flag, Ban, Upload, Star } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getMatchById, cancelMatch } from '@/services/matchService';
 import { createReport, REPORT_REASONS } from '@/services/reportService';
@@ -220,6 +220,14 @@ export default function MatchDetail() {
             >
               <Ban size={15} /> Cancel match
             </button>
+          )}
+          {!isTeacher && (
+            <Link
+              to={`/reviews/write/${match.match_id}`}
+              className="flex items-center gap-1.5 rounded-xl border border-amber-200 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-50"
+            >
+              <Star size={15} /> Write a review
+            </Link>
           )}
           <button
             onClick={() => setModal('report')}

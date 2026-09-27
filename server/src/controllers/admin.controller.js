@@ -11,7 +11,8 @@ const {
   listAllMatches,
   listReportsByStatus, getReportDetailForAdmin, getReportStats,
   markUnderReview, requestExplanationForReport, resolveReportAsAdmin,
-    getWarningsForUser, getAuditLogForReport,
+  getWarningsForUser, getAuditLogForReport,  getMatchedTeachersOverview, getStudentsMatchedOverview,
+  getTeacherMatchDetail, getStudentMatchDetail,
 } = require('../models/admin.model');
 const { getEvidenceForReport } = require('../models/report.model');
 // Shared pagination parsing: page starts at 1, limit is capped so nobody
@@ -319,6 +320,42 @@ async function getReportTimeline(req, res) {
     sendDbError(res, err, 'GetReportTimeline');
   }
 }
+
+async function listMatchedTeachers(req, res) {
+  try {
+    res.status(200).json({ teachers: await getMatchedTeachersOverview() });
+  } catch (err) {
+    sendDbError(res, err, 'ListMatchedTeachers');
+  }
+}
+
+async function listMatchedStudents(req, res) {
+  try {
+    res.status(200).json({ students: await getStudentsMatchedOverview() });
+  } catch (err) {
+    sendDbError(res, err, 'ListMatchedStudents');
+  }
+}
+
+async function getTeacherMatches(req, res) {
+  try {
+    const detail = await getTeacherMatchDetail(req.params.userId);
+    if (!detail) return res.status(404).json({ error: 'Teacher not found.' });
+    res.status(200).json(detail);
+  } catch (err) {
+    sendDbError(res, err, 'GetTeacherMatches');
+  }
+}
+
+async function getStudentMatches(req, res) {
+  try {
+    const detail = await getStudentMatchDetail(req.params.userId);
+    if (!detail) return res.status(404).json({ error: 'Student not found.' });
+    res.status(200).json(detail);
+  } catch (err) {
+    sendDbError(res, err, 'GetStudentMatches');
+  }
+}
 module.exports = {
   getStats,
   getPendingTeachers,
@@ -339,4 +376,8 @@ module.exports = {
   resolveReportHandler,
     getUserWarnings,
   getReportTimeline,
+   listMatchedTeachers, 
+   listMatchedStudents, 
+   getTeacherMatches, 
+   getStudentMatches,
 };

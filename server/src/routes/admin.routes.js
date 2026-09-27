@@ -17,6 +17,7 @@ const {
     getAllReports, getReportStatsHandler, getReportDetail,
   reviewReport, requestExplanation, resolveReportHandler,
     getUserWarnings, getReportTimeline,
+     listMatchedTeachers, listMatchedStudents, getTeacherMatches, getStudentMatches,
 } = require('../controllers/admin.controller');
 
 // Applied once to every route below -- authorization is enforced here on
@@ -40,6 +41,10 @@ router.post('/users/:userId/suspend', suspendAccount);
 router.post('/users/:userId/activate', activateAccount);
 router.delete('/users/:userId', deleteAccount);
 router.get('/matches', verifyToken, requireRole('admin'), getAllMatches);
+router.get('/matches/teachers', verifyToken, requireRole('admin'), listMatchedTeachers);
+router.get('/matches/students', verifyToken, requireRole('admin'), listMatchedStudents);
+router.get('/matches/teachers/:userId', verifyToken, requireRole('admin'), getTeacherMatches);
+router.get('/matches/students/:userId', verifyToken, requireRole('admin'), getStudentMatches);
 router.get('/reports', verifyToken, requireRole('admin'), getAllReports);
 router.get('/reports/stats', verifyToken, requireRole('admin'), getReportStatsHandler);
 router.get('/reports/:id', verifyToken, requireRole('admin'), getReportDetail);

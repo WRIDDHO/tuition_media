@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import {
   Users, GraduationCap, Clock, ShieldAlert, FileText, ClipboardList,
   HelpCircle, BookOpen, CheckCircle2, XCircle, Ban, RotateCcw, Trash2, X, ArrowLeft,
-  AlertTriangle, MessageSquareWarning, History, AlertOctagon,
+  AlertTriangle, MessageSquareWarning, History, AlertOctagon,Mail, Phone, MapPin, ArrowRight, Wallet
 } from 'lucide-react';
 import {
   getPlatformStats,
@@ -17,7 +17,6 @@ import {
   suspendAccount,
   activateAccount,
   deleteAccount,
-  getAllMatches, 
   getReportStats,
   getAllReports,
   getReportDetail,
@@ -25,7 +24,8 @@ import {
   requestExplanation,
   resolveReport,
   getUserWarnings,
-   getReportTimeline,
+   getReportTimeline,getMatchedTeachers, getMatchedStudents, getTeacherMatchDetail, getStudentMatchDetail,
+   
 } from '@/services/adminService';
 import { getAllTeacherPosts, getAllStudentRequests, deleteTeacherPost, deleteStudentRequest } from '@/services/postService';
 import { getAllQuestions, deleteQuestion, getAllResources, deleteResource } from '@/services/activityService';
@@ -200,7 +200,7 @@ const STAT_CARDS = [
   { key: 'suspended_users', label: 'Suspended accounts', icon: ShieldAlert, tab: 'suspended' },
   { key: 'active_teacher_posts', label: 'Active tuition posts', icon: FileText, tab: 'posts' },
   { key: 'active_student_requests', label: 'Active student requests', icon: ClipboardList, tab: 'requests' },
-  { key: 'total_matches', label: 'Matches made', icon: CheckCircle2 }, // no admin view yet
+  { key: 'total_matches', label: 'Matches made', icon: CheckCircle2,tab: 'matches' }, // no admin view yet
   { key: 'total_questions', label: 'Questions asked', icon: HelpCircle, tab: 'questions' },
   { key: 'total_resources', label: 'Resources shared', icon: BookOpen, tab: 'resources' },
 ];
@@ -765,41 +765,255 @@ function ResourcesModerationTab() {
 // for matches in the DB, so this tab only shows who matched with whom.
 // ---------------------------------------------------------------------
 
-function MatchesTab() {
-  const [page, setPage] = useState(1);
+// ---------------------------------------------------------------------
+// Matches: organized by unique teacher/student instead of one card per
+// match. Read-only (no cancel/delete procedure for matches exists).
+// ---------------------------------------------------------------------
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['admin-matches', page],
-    queryFn: () => getAllMatches({ page }),
+function InfoRow({ icon: Icon, label, value }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-2 text-sm">
+      <Icon size={14} className="mt-0.5 shrink-0 text-forest-700" />
+      <span className="text-ink-600">{label}: <span className="font-medium text-ink-900">{value}</span></span>
+    </div>
+  );
+}
+
+function MatchDetailModal({ open, onClose, title, profileFields, matchedList, matchedLabel }) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/40 px-4 py-8 overflow-y-auto"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 12, scale: 0.97 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl rounded-3xl border border-forest-100 bg-cream-50 p-6 shadow-xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <h3 className="font-display text-xl font-semibold text-forest-950">{title}</h3>
+              <button onClick={onClose} className="rounded-lg p-1 text-ink-400 hover:bg-forest-100 hover:text-ink-700">
+                <X size={18} />
+              </button>
+            </div>
+
+            {!profileFields ? (
+              <div className="flex justify-center py-10"><Spinner /></div>
+            ) : (
+              <>
+                <div className="mt-4 grid gap-2 rounded-xl bg-white p-4 sm:grid-cols-2">
+                  {profileFields}
+                </div>
+
+                <p className="mt-5 text-sm font-semibold uppercase tracking-wide text-ink-400">
+                  {matchedLabel} ({matchedList.length})
+                </p>
+                <div className="mt-2 space-y-3">
+                  {matchedList.map((m) => (
+                    <div key={m.match_id} className="rounded-xl border border-forest-100 bg-white p-4">
+                      <div className="flex items-center justify-between">
+                        <p className="font-semibold text-forest-950">{m.name}</p>
+                        <StatusBadge status={m.status} />
+                      </div>
+                      <p className="mt-1 text-xs text-ink-500">
+                        {m.subject_name || 'Subject unknown'} · Match started {new Date(m.started_at).toLocaleDateString()}
+                      </p>
+                      <div className="mt-2 space-y-1">
+                        {m.details}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function MatchesTab() {
+  const [subTab, setSubTab] = useState('teachers'); // 'teachers' | 'students'
+  const [openTeacherId, setOpenTeacherId] = useState(null);
+  const [openStudentId, setOpenStudentId] = useState(null);
+
+  const { data: teachers, isLoading: teachersLoading, isError: teachersError } = useQuery({
+    queryKey: ['admin-matched-teachers'],
+    queryFn: getMatchedTeachers,
+    enabled: subTab === 'teachers',
+  });
+  const { data: students, isLoading: studentsLoading, isError: studentsError } = useQuery({
+    queryKey: ['admin-matched-students'],
+    queryFn: getMatchedStudents,
+    enabled: subTab === 'students',
   });
 
-  if (isLoading) return <div className="flex justify-center py-16"><Spinner /></div>;
-  if (isError) return <ErrorNote message="Could not load matches." />;
-  if (!data?.matches?.length) {
-    return <EmptyState title="No matches yet" description="Accepted applications will appear here as matches." />;
-  }
+  const { data: teacherDetail } = useQuery({
+    queryKey: ['admin-teacher-match-detail', openTeacherId],
+    queryFn: () => getTeacherMatchDetail(openTeacherId),
+    enabled: openTeacherId !== null,
+  });
+  const { data: studentDetail } = useQuery({
+    queryKey: ['admin-student-match-detail', openStudentId],
+    queryFn: () => getStudentMatchDetail(openStudentId),
+    enabled: openStudentId !== null,
+  });
 
   return (
     <div>
-      <div className="space-y-3">
-        {data.matches.map((m) => (
-          <div key={m.match_id} className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-forest-100 bg-cream-50 p-5">
-            <div>
-              <p className="font-semibold text-forest-950">
-                {m.teacher_name} <span className="text-ink-400">×</span> {m.student_name}
-              </p>
-              <p className="text-sm text-ink-600">
-                {m.subject_name || 'Subject unknown'}{m.post_title ? ` · ${m.post_title}` : ''}
-              </p>
-              <p className="mt-1 text-xs text-ink-400">
-                Started {new Date(m.started_at).toLocaleDateString()}
-              </p>
-            </div>
-            <StatusBadge status={m.status} />
-          </div>
+      <div className="mb-6 flex gap-2">
+        {[{ key: 'teachers', label: 'Teachers' }, { key: 'students', label: 'Students' }].map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setSubTab(t.key)}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+              subTab === t.key ? 'bg-forest-900 text-cream-50' : 'text-ink-600 hover:bg-forest-100'
+            }`}
+          >
+            {t.label}
+          </button>
         ))}
       </div>
-      <Pager page={data.page} limit={data.limit} totalCount={data.totalCount} onPageChange={setPage} />
+
+      {subTab === 'teachers' ? (
+        teachersLoading ? (
+          <div className="flex justify-center py-16"><Spinner /></div>
+        ) : teachersError ? (
+          <ErrorNote message="Could not load teachers." />
+        ) : !teachers?.length ? (
+          <EmptyState title="No active matches" description="Teachers with active students will appear here." />
+        ) : (
+          <div className="space-y-3">
+            {teachers.map((t) => (
+              <button
+                key={t.teacher_user_id}
+                onClick={() => setOpenTeacherId(t.teacher_user_id)}
+                className="flex w-full items-center justify-between gap-4 rounded-2xl border border-forest-100 bg-cream-50 p-5 text-left transition hover:border-forest-700"
+              >
+                <div>
+                  <p className="font-semibold text-forest-950">{t.teacher_name}</p>
+                  <p className="text-sm text-ink-600">{t.main_subject}</p>
+                  <p className="mt-1 text-xs text-ink-400">
+                    {t.active_student_count} Active Student{t.active_student_count === '1' ? '' : 's'}
+                  </p>
+                </div>
+                <span className="flex items-center gap-1 text-sm font-semibold text-forest-700">
+                  View <ArrowRight size={15} />
+                </span>
+              </button>
+            ))}
+          </div>
+        )
+      ) : (
+        studentsLoading ? (
+          <div className="flex justify-center py-16"><Spinner /></div>
+        ) : studentsError ? (
+          <ErrorNote message="Could not load students." />
+        ) : !students?.length ? (
+          <EmptyState title="No active matches" description="Students with active teachers will appear here." />
+        ) : (
+          <div className="space-y-3">
+            {students.map((s) => (
+              <button
+                key={s.student_user_id}
+                onClick={() => setOpenStudentId(s.student_user_id)}
+                className="flex w-full items-center justify-between gap-4 rounded-2xl border border-forest-100 bg-cream-50 p-5 text-left transition hover:border-forest-700"
+              >
+                <div>
+                  <p className="font-semibold text-forest-950">{s.student_name}</p>
+                  {(s.education_level || s.institution) && (
+                    <p className="text-sm text-ink-600">
+                      {[s.education_level, s.institution].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs text-ink-400">
+                    {s.active_teacher_count} Active Teacher{s.active_teacher_count === '1' ? '' : 's'}
+                  </p>
+                </div>
+                <span className="flex items-center gap-1 text-sm font-semibold text-forest-700">
+                  View <ArrowRight size={15} />
+                </span>
+              </button>
+            ))}
+          </div>
+        )
+      )}
+
+      <MatchDetailModal
+        open={openTeacherId !== null}
+        onClose={() => setOpenTeacherId(null)}
+        title={teacherDetail?.profile?.full_name || 'Teacher'}
+        profileFields={teacherDetail?.profile && (
+          <>
+            <InfoRow icon={Mail} label="Email" value={teacherDetail.profile.email} />
+            <InfoRow icon={Phone} label="Phone" value={teacherDetail.profile.phone} />
+            <InfoRow icon={GraduationCap} label="Qualification" value={teacherDetail.profile.qualification} />
+            <InfoRow icon={FileText} label="Institution" value={teacherDetail.profile.institution} />
+            <InfoRow icon={FileText} label="Current level" value={teacherDetail.profile.current_level} />
+            <InfoRow icon={FileText} label="Major" value={teacherDetail.profile.major} />
+            <InfoRow icon={Clock} label="Experience" value={teacherDetail.profile.experience_years ? `${teacherDetail.profile.experience_years} yrs` : null} />
+            <InfoRow icon={Wallet} label="Rate" value={teacherDetail.profile.hourly_rate ? `৳${teacherDetail.profile.hourly_rate}/hr` : null} />
+            <InfoRow icon={MapPin} label="Location" value={[teacherDetail.profile.district, teacherDetail.profile.area].filter(Boolean).join(', ')} />
+          </>
+        )}
+        matchedLabel="Students Currently Matched"
+        matchedList={(teacherDetail?.students || []).map((s) => ({
+          match_id: s.match_id,
+          name: s.student_name,
+          status: s.status,
+          subject_name: s.subject_name,
+          started_at: s.started_at,
+          details: (
+            <>
+              <InfoRow icon={Mail} label="Email" value={s.student_email} />
+              <InfoRow icon={Phone} label="Phone" value={s.phone} />
+              <InfoRow icon={GraduationCap} label="Education level" value={s.education_level} />
+              <InfoRow icon={FileText} label="Institution" value={s.institution} />
+              <InfoRow icon={FileText} label="Medium" value={s.medium} />
+              {s.bio && <p className="text-sm text-ink-600">{s.bio}</p>}
+            </>
+          ),
+        }))}
+      />
+
+      <MatchDetailModal
+        open={openStudentId !== null}
+        onClose={() => setOpenStudentId(null)}
+        title={studentDetail?.profile?.full_name || 'Student'}
+        profileFields={studentDetail?.profile && (
+          <>
+            <InfoRow icon={Mail} label="Email" value={studentDetail.profile.email} />
+            <InfoRow icon={Phone} label="Phone" value={studentDetail.profile.phone} />
+            <InfoRow icon={GraduationCap} label="Education level" value={studentDetail.profile.education_level} />
+            <InfoRow icon={FileText} label="Institution" value={studentDetail.profile.institution} />
+            <InfoRow icon={FileText} label="Medium" value={studentDetail.profile.medium} />
+            <InfoRow icon={MapPin} label="Location" value={[studentDetail.profile.district, studentDetail.profile.area].filter(Boolean).join(', ')} />
+          </>
+        )}
+        matchedLabel="Teachers Currently Matched"
+        matchedList={(studentDetail?.teachers || []).map((t) => ({
+          match_id: t.match_id,
+          name: t.teacher_name,
+          status: t.status,
+          subject_name: t.subject_name,
+          started_at: t.started_at,
+          details: (
+            <>
+              <InfoRow icon={Mail} label="Email" value={t.teacher_email} />
+              <InfoRow icon={Phone} label="Phone" value={t.phone} />
+              <InfoRow icon={GraduationCap} label="Qualification" value={t.qualification} />
+              <InfoRow icon={FileText} label="Institution" value={t.institution} />
+              <InfoRow icon={FileText} label="Major" value={t.major} />
+              <InfoRow icon={Clock} label="Experience" value={t.experience_years ? `${t.experience_years} yrs` : null} />
+            </>
+          ),
+        }))}
+      />
     </div>
   );
 }

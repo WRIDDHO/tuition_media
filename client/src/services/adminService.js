@@ -92,3 +92,22 @@ export async function getReportTimeline(reportId) {
   const res = await api.get(`/admin/reports/${reportId}/timeline`);
   return res.data.timeline;
 }
+export async function getMatchedTeachers() {
+  const res = await api.get('/admin/matches/teachers');
+  return res.data.teachers;
+}
+
+export async function getMatchedStudents() {
+  const res = await api.get('/admin/matches/students');
+  return res.data.students;
+}
+
+export async function getTeacherMatchDetail(userId) {
+  const res = await api.get(`/admin/matches/teachers/${userId}`);
+  return res.data;
+}
+
+export async function getStudentMatchDetail(userId) {
+  const res = await api.get(`/admin/matches/students/${userId}`);
+  return res.data;
+}
