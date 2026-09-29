@@ -52,13 +52,11 @@ export default function StudentProfileSetup() {
 
   if (loading) return null;
 
-  const fields = [
-    { key: 'educationLevel', label: 'Class / Education level', placeholder: 'e.g. Class 10' },
-    { key: 'institution', label: 'Institution', placeholder: 'e.g. Dhaka Residential Model College' },
-    { key: 'district', label: 'District', placeholder: 'e.g. Dhaka' },
-    { key: 'area', label: 'Area', placeholder: 'e.g. Mirpur' },
-    { key: 'phone', label: 'Phone', placeholder: '017XXXXXXXX' },
-  ];
+  // FIXED: educationLevel/institution/district/area/phone/medium are now
+  // collected at signup. Only bio is left here -- `form` state above still
+  // holds the full profile fetched from the server, so submitting still
+  // sends the complete object, not just bio -- nothing gets wiped.
+  const fields = [];
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
@@ -80,19 +78,6 @@ export default function StudentProfileSetup() {
               />
             </div>
           ))}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink-900">Medium</label>
-            <select
-              value={form.medium}
-              onChange={(e) => update('medium', e.target.value)}
-              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700"
-            >
-              <option value="">Select</option>
-              <option value="Bangla">Bangla Medium</option>
-              <option value="English">English Medium</option>
-              <option value="English Version">English Version</option>
-            </select>
-          </div>
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-ink-900">Bio</label>
             <textarea

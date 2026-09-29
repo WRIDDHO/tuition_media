@@ -3,9 +3,12 @@ const jwt = require('jsonwebtoken');
 const { createUser, findUserByEmail,reactivateIfSuspensionExpired  } = require('../models/user.model');
 const PUBLIC_REGISTRATION_ROLES = ['student', 'teacher'];
 
+const TEACHER_SIGNUP_REQUIRED = ['qualification', 'institution', 'currentLevel', 'major', 'experienceYears', 'gender', 'phone', 'district', 'area'];
+const STUDENT_SIGNUP_REQUIRED = ['educationLevel', 'institution', 'medium', 'phone', 'district', 'area'];
+
 async function register(req, res) {
   try {
-    const { fullName, email, password, role } = req.body;
+    const { fullName, email, password, role, ...profileFields } = req.body;
 
     if (!fullName || !email || !password || !role) {
       return res.status(400).json({ error: 'All fields are required.' });
@@ -15,6 +18,15 @@ async function register(req, res) {
       return res.status(400).json({ error: 'Role must be student or teacher.' });
     }
 
+    // FIXED: signup now collects most of the profile up front (per
+    // request), instead of leaving it entirely to a later "complete
+    // your profile" step. Required fields differ by role.
+    const requiredFields = role === 'teacher' ? TEACHER_SIGNUP_REQUIRED : STUDENT_SIGNUP_REQUIRED;
+    const missing = requiredFields.filter((f) => profileFields[f] === undefined || profileFields[f] === '');
+    if (missing.length) {
+      return res.status(400).json({ error: `Please fill in: ${missing.join(', ')}` });
+    }
+
     const existingUser = await findUserByEmail(email);
     if (existingUser) {
       return res.status(409).json({ error: 'This email is already registered.' });
@@ -22,7 +34,7 @@ async function register(req, res) {
     const accountStatus = role === 'teacher' ? 'pending' : 'active';
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const newUser = await createUser({ fullName, email, passwordHash, role, accountStatus });
+    const newUser = await createUser({ fullName, email, passwordHash, role, accountStatus, profileFields });
 
     const message = role === 'teacher'
       ? 'Registration successful. Your teacher account is awaiting admin approval before you can log in.'
@@ -30,6 +42,9 @@ async function register(req, res) {
 
     res.status(201).json({ message, user: newUser });
   } catch (err) {
+    if (err.code === '23514') {
+      return res.status(400).json({ error: 'One of the values you entered violates a business rule (phone must be exactly 11 digits, gender must be male or female, experience cannot be negative).' });
+    }
     console.error('Register error:', err.message);
     res.status(500).json({ error: 'Something went wrong. Please try again.' });
   }

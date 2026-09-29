@@ -24,8 +24,8 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  async function register(fullName, email, password, role) {
-    await registerUser({ fullName, email, password, role });
+  async function register(fullName, email, password, role, profileFields) {
+    await registerUser({ fullName, email, password, role, ...profileFields });
     // registration does not log the user in automatically on the backend —
     // send them to login right after, on purpose.
   }

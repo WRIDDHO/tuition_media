@@ -58,15 +58,7 @@ export default function TeacherProfileSetup() {
   if (loading) return null;
 
   const fields = [
-    { key: 'qualification', label: 'Qualification', placeholder: 'e.g. MSc in Mathematics' },
-    { key: 'institution', label: 'Institution', placeholder: 'e.g. Dhaka University' },
-    { key: 'currentLevel', label: 'Current position', placeholder: 'e.g. Lecturer' },
-    { key: 'major', label: 'Major', placeholder: 'e.g. Mathematics' },
-    { key: 'experienceYears', label: 'Years of experience', type: 'number', placeholder: '5' },
     { key: 'hourlyRate', label: 'Hourly rate (৳)', type: 'number', placeholder: '500' },
-    { key: 'district', label: 'District', placeholder: 'e.g. Dhaka' },
-    { key: 'area', label: 'Area', placeholder: 'e.g. Dhanmondi' },
-    { key: 'phone', label: 'Phone', placeholder: '017XXXXXXXX' },
   ];
 
   return (
@@ -90,18 +82,6 @@ export default function TeacherProfileSetup() {
               />
             </div>
           ))}
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-ink-900">Gender</label>
-            <select
-              value={form.gender}
-              onChange={(e) => update('gender', e.target.value)}
-              className="w-full rounded-xl border border-forest-100 bg-white px-4 py-2.5 text-sm outline-none focus:border-forest-700"
-            >
-              <option value="">Prefer not to say</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
-          </div>
 
           <button
             type="submit"
